@@ -183,7 +183,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-xs text-sidebar-muted">
-              © 2026 University of Sri Jayewardenepura · Bursar's Office
+              © 2026 Wayamba University of Sri Lanka · Bursar's Office
             </p>
           </div>
         </div>

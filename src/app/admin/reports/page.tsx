@@ -18,9 +18,8 @@ const inputCls = "h-10 w-full rounded-xl border bg-card px-3 text-sm outline-non
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 
 type ReportsData = {
-  feeTypes: string[];
+  feeCategories: string[];
   faculties: string[];
-  academicYears: string[];
   reports: { id: number; date: string; by: string; filter: string }[];
 };
 
@@ -29,20 +28,20 @@ type ReportsFilters = {
   endDate: string;
   faculty: string;
   level?: string;
-  academicYear: string;
+  feeCategory: string;
   feeType: string;
   student: string;
 };
 
 export default function Reports() {
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
-  const [data, setData] = useState<ReportsData>({ feeTypes: [], faculties: [], academicYears: [], reports: [] });
+  const [data, setData] = useState<ReportsData>({ feeCategories: [], faculties: [], reports: [] });
   const [filters, setFilters] = useState<ReportsFilters>({
     startDate: "",
     endDate: "",
     faculty: "",
     level: "",
-    academicYear: "",
+    feeCategory: "",
     feeType: "",
     student: "",
   });
@@ -128,7 +127,7 @@ export default function Reports() {
   };
 
   const resetFilters = () =>
-    setFilters({ startDate: "", endDate: "", faculty: "", level: "", academicYear: "", feeType: "", student: "" });
+    setFilters({ startDate: "", endDate: "", faculty: "", level: "", feeCategory: "", feeType: "", student: "" });
 
   return (
     <PortalLayout
@@ -161,6 +160,7 @@ export default function Reports() {
           <Field label="Faculty">
             <select className={inputCls} value={filters.faculty} onChange={(e) => setFilters({ ...filters, faculty: e.target.value })}>
               <option value="">All Faculties</option>
+              <option value="none">none</option>
               {data.faculties.map((faculty) => (
                 <option key={faculty} value={faculty}>
                   {faculty}
@@ -172,6 +172,7 @@ export default function Reports() {
           <Field label="Level">
             <select className={inputCls} value={filters.level ?? ""} onChange={(e) => setFilters({ ...filters, level: e.target.value })}>
               <option value="">All Levels</option>
+              <option value="none">none</option>
               <option value="1">Level 1</option>
               <option value="2">Level 2</option>
               <option value="3">Level 3</option>
@@ -179,12 +180,13 @@ export default function Reports() {
             </select>
           </Field>
 
-          <Field label="Academic Year">
-            <select className={inputCls} value={filters.academicYear} onChange={(e) => setFilters({ ...filters, academicYear: e.target.value })}>
-              <option value="">All Academic Years</option>
-              {data.academicYears.map((year) => (
-                <option key={year} value={year}>
-                  {year}
+          <Field label="Fee category">
+            <select className={inputCls} value={filters.feeCategory} onChange={(e) => setFilters({ ...filters, feeCategory: e.target.value })}>
+              <option value="">All categories</option>
+              <option value="none">none</option>
+              {data.feeCategories.map((cat: string) => (
+                <option key={cat} value={cat}>
+                  {cat}
                 </option>
               ))}
             </select>
@@ -193,11 +195,14 @@ export default function Reports() {
           <Field label="Fee Type">
             <select className={inputCls} value={filters.feeType} onChange={(e) => setFilters({ ...filters, feeType: e.target.value })}>
               <option value="">All Fee Types</option>
-              {data.feeTypes.map((feeType) => (
-                <option key={feeType} value={feeType}>
-                  {feeType}
-                </option>
-              ))}
+              <option value="none">none</option>
+              {Array.isArray((data as any).feeTypes)
+                ? (data as any).feeTypes.map((feeType: string) => (
+                    <option key={feeType} value={feeType}>
+                      {feeType}
+                    </option>
+                  ))
+                : null}
             </select>
           </Field>
 

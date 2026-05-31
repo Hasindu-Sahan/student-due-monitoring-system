@@ -31,7 +31,7 @@ export default function FeeManagement() {
   const [selected, setSelected] = useState<Fee | null>(null);
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
-  const [receiverFilters, setReceiverFilters] = useState({ faculty: "", level: "", academicYear: "", studentSearch: "" });
+  const [receiverFilters, setReceiverFilters] = useState({ faculty: "", level: "", studentSearch: "" });
   const [students, setStudents] = useState<StudentOption[]>([]);
 
   // Add form refs
@@ -40,16 +40,27 @@ export default function FeeManagement() {
   const addDesc = useRef<HTMLTextAreaElement>(null);
   const addAmount = useRef<HTMLInputElement>(null);
   const addDue = useRef<HTMLInputElement>(null);
-  const addYear = useRef<HTMLInputElement>(null);
-
   // Edit form refs
   const editCategory = useRef<HTMLInputElement>(null);
+
   const editAmount = useRef<HTMLInputElement>(null);
   const editDue = useRef<HTMLInputElement>(null);
-  const editYear = useRef<HTMLInputElement>(null);
+
 
   const load = () => {
-    fetch("/api/admin/fees").then(r => r.json()).then(data => { setFees(data); setLoading(false); });
+    setLoading(true);
+    fetch("/api/admin/fees")
+      .then((r) => r.json())
+      .then((data) => {
+        // API should return an array, but guard against error objects
+        if (Array.isArray(data)) setFees(data);
+        else setFees([]);
+        setLoading(false);
+      })
+      .catch(() => {
+        setFees([]);
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -82,7 +93,6 @@ export default function FeeManagement() {
         description: addDesc.current?.value ?? "",
         amount: parseFloat(addAmount.current.value),
         dueDate: addDue.current?.value || null,
-        academicYear: addYear.current?.value || null,
         receiverFilters,
         userId: sessionUserId,
       }),
@@ -92,7 +102,6 @@ export default function FeeManagement() {
     if (addCategory.current) addCategory.current.value = "";
     if (addAmount.current) addAmount.current.value = "";
     if (addDue.current) addDue.current.value = "";
-    if (addYear.current) addYear.current.value = "";
   };
 
   const handleEdit = async () => {
@@ -105,7 +114,6 @@ export default function FeeManagement() {
         category: editCategory.current?.value ?? selected.category,
         amount: parseFloat(editAmount.current?.value ?? String(selected.amount)),
         dueDate: editDue.current?.value || null,
-        academicYear: editYear.current?.value || null,
         receiverFilters,
         userId: sessionUserId,
       }),
@@ -148,21 +156,24 @@ export default function FeeManagement() {
             </label>
             <Input label="Amount (LKR)" placeholder="75000" type="number" ref={addAmount} />
             <Input label="Due Date (optional)" type="date" ref={addDue} />
-            <Input label="Academic Year (optional)" placeholder="2025/2026" ref={addYear} />
+
             <div className="sm:col-span-2 rounded-xl border bg-muted/30 p-4">
               <p className="text-xs font-semibold text-muted-foreground">Receivers</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <select value={receiverFilters.faculty} onChange={(e) => setReceiverFilters({ ...receiverFilters, faculty: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
+    <select value={receiverFilters.faculty} onChange={(e) => setReceiverFilters({ ...receiverFilters, faculty: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
                   <option value="">All faculties</option>
+                  <option value="none">none</option>
+                  <option value="FOT">FOT</option>
                   {Array.from(new Set(students.map((s) => s.faculty).filter(Boolean))).map((faculty) => <option key={faculty}>{faculty}</option>)}
                 </select>
-                <select value={receiverFilters.level} onChange={(e) => setReceiverFilters({ ...receiverFilters, level: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
-                  <option value="">All levels</option>
-                  <option value="1">Level 1</option>
-                  <option value="2">Level 2</option>
-                  <option value="3">Level 3</option>
-                  <option value="4">Level 4</option>
-                </select>
+            <select value={receiverFilters.level} onChange={(e) => setReceiverFilters({ ...receiverFilters, level: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
+              <option value="">All levels</option>
+              <option value="none">none</option>
+              <option value="1">Level 1</option>
+              <option value="2">Level 2</option>
+              <option value="3">Level 3</option>
+              <option value="4">Level 4</option>
+            </select>
                 {/** academicYear filter removed; level is sufficient */}
                 <div className="hidden" />
                 <div className="relative">
@@ -214,24 +225,23 @@ export default function FeeManagement() {
                 <Input label="Category" defaultValue={selected.category} ref={editCategory} key={`cat-${selected.feeId}`} />
                 <Input label="Amount (LKR)" defaultValue={String(selected.amount)} type="number" ref={editAmount} key={`amt-${selected.feeId}`} />
                 <Input label="Due Date (optional)" type="date" defaultValue={selected.due} ref={editDue} key={`due-${selected.feeId}`} />
-                <Input label="Academic Year (optional)" defaultValue={selected.year} ref={editYear} key={`yr-${selected.feeId}`} />
+
                 <div className="sm:col-span-2 rounded-xl border bg-muted/30 p-4">
                   <p className="text-xs font-semibold text-muted-foreground">Receiver filter for this update</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <select value={receiverFilters.faculty} onChange={(e) => setReceiverFilters({ ...receiverFilters, faculty: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
                       <option value="">All faculties</option>
+                      <option value="none">none</option>
+                      <option value="FOT">FOT</option>
                       {Array.from(new Set(students.map((s) => s.faculty).filter(Boolean))).map((faculty) => <option key={faculty}>{faculty}</option>)}
                     </select>
                     <select value={receiverFilters.level} onChange={(e) => setReceiverFilters({ ...receiverFilters, level: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
                       <option value="">All levels</option>
+                      <option value="none">none</option>
                       <option value="1">Level 1</option>
                       <option value="2">Level 2</option>
                       <option value="3">Level 3</option>
                       <option value="4">Level 4</option>
-                    </select>
-                    <select value={receiverFilters.academicYear} onChange={(e) => setReceiverFilters({ ...receiverFilters, academicYear: e.target.value })} className="h-10 rounded-xl border bg-card px-3 text-sm outline-none">
-                      <option value="">All academic years</option>
-                      {Array.from(new Set(students.map((s) => s.academicYear).filter(Boolean))).map((year) => <option key={year}>{year}</option>)}
                     </select>
                     <input value={receiverFilters.studentSearch} onChange={(e) => setReceiverFilters({ ...receiverFilters, studentSearch: e.target.value })} placeholder="Student ID or name" className="h-10 rounded-xl border bg-card px-3 text-sm outline-none" />
                   </div>
@@ -258,7 +268,7 @@ export default function FeeManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                {["Fee Type", "Category", "Amount", "Due Date", "Academic Year", "Actions"].map((h) => (
+                {["Fee Type", "Category", "Amount", "Due Date", "Actions"].map((h) => (
                   <th key={h} className="px-6 py-3 font-medium">
                     <span className="inline-flex items-center gap-1.5">{h} <ArrowUpDown className="h-3 w-3 opacity-50" /></span>
                   </th>
@@ -276,7 +286,6 @@ export default function FeeManagement() {
                   <td className="px-6 py-4"><span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{f.category}</span></td>
                   <td className="px-6 py-4 font-semibold tabular-nums">{lkr(f.amount)}</td>
                   <td className="px-6 py-4 text-muted-foreground">{f.due}</td>
-                  <td className="px-6 py-4 text-muted-foreground">{f.year}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setSelected(f)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary">

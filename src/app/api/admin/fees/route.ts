@@ -21,8 +21,8 @@ function buildStudentWhere(filters: {
   studentSearch?: string;
 }) {
   const where: Record<string, unknown> = {};
-  if (filters.faculty) where.faculty = filters.faculty;
-  if (filters.level) where.level = Number(filters.level);
+  if (filters.faculty && filters.faculty !== "none") where.faculty = filters.faculty;
+  if (filters.level && filters.level !== "none") where.level = Number(filters.level);
   if (filters.academicYear) where.academicYear = filters.academicYear;
   if (filters.studentSearch) {
     where.OR = [

@@ -41,18 +41,17 @@ function filterLabel(filters: Record<string, string>, fileType?: string) {
 
 export async function GET() {
   try {
-    const [feeTypes, students, fees, reportLogs] = await Promise.all([
+  const [feeTypes, feeCategories, students, reportLogs] = await Promise.all([
       prisma.feeType.findMany({
         select: { feeName: true },
         orderBy: { feeName: "asc" },
       }),
+      prisma.feeType.findMany({
+        select: { category: true },
+      }),
       prisma.student.findMany({
         select: { faculty: true, academicYear: true },
         orderBy: { studentId: "asc" },
-      }),
-      prisma.fee.findMany({
-        select: { academicYear: true },
-        orderBy: { academicYear: "desc" },
       }),
       prisma.auditLog.findMany({
         where: { tableName: "reports" },
@@ -66,12 +65,9 @@ export async function GET() {
       new Set(students.map((student) => student.faculty).filter(Boolean) as string[])
     ).sort();
 
-    const academicYears = Array.from(
-      new Set([
-        ...students.map((student) => student.academicYear).filter(Boolean),
-        ...fees.map((fee) => fee.academicYear).filter(Boolean),
-      ] as string[])
-    ).sort().reverse();
+    const feeCategoryList = Array.from(
+      new Set(feeCategories.map((ft) => ft.category).filter(Boolean) as string[])
+    ).sort();
 
     const reports = reportLogs.map((log) => {
       const admin = log.user.admin;
@@ -91,8 +87,8 @@ export async function GET() {
 
     return NextResponse.json({
       feeTypes: feeTypes.map((feeType) => feeType.feeName),
+      feeCategories: feeCategoryList,
       faculties,
-      academicYears,
       reports,
     });
   } catch (error) {
@@ -125,7 +121,10 @@ export async function POST(req: NextRequest) {
         const fee = payment.studentFee.fee;
         const name = `${student.firstName} ${student.lastName}`.toLowerCase();
         const studentQuery = String(filters.student ?? "").toLowerCase();
-        return (!filters.academicYear || fee.academicYear === filters.academicYear)
+        return (!filters.feeCategory ||
+          (filters.feeCategory === "none"
+            ? !fee.feeType.category
+            : (fee.feeType.category ?? "") === filters.feeCategory))
           && (!filters.feeType || fee.feeType.feeName === filters.feeType)
           && (!studentQuery || student.studentId.toLowerCase().includes(studentQuery) || name.includes(studentQuery));
       })
