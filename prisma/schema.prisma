@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  userId       Int       @id @default(autoincrement()) @map("user_id")
+  username     String    @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         UserRole
+  email        String    @unique @db.VarChar(150)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+
+  student   Student?
+  admin     Admin?
+  payments  Payment[]  @relation("VerifiedBy")
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  Admin
+  Staff
+  Student
+}
+
+model FeeType {
+  feeTypeId   Int     @id @default(autoincrement()) @map("fee_type_id")
+  feeName     String  @map("fee_name") @db.VarChar(100)
+  description String? @db.Text
+  category    String? @db.VarChar(50)
+
+  fees Fee[]
+
+  @@map("fee_types")
+}
+
+model Fee {
+  feeId        Int      @id @default(autoincrement()) @map("fee_id")
+  feeTypeId    Int      @map("fee_type_id")
+  amount       Decimal  @db.Decimal(10, 2)
+  dueDate      DateTime? @map("due_date") @db.Date
+  academicYear String?   @map("academic_year") @db.VarChar(20)
+
+  feeType     FeeType      @relation(fields: [feeTypeId], references: [feeTypeId], onDelete: Cascade)
+  studentFees StudentFee[]
+
+  @@map("fees")
+}
+
+model Student {
+  studentId        String  @id @map("student_id") @db.VarChar(50)
+  firstName        String  @map("first_name") @db.VarChar(100)
+  lastName         String  @map("last_name") @db.VarChar(100)
+  email            String  @db.VarChar(150)
+  phone            String? @db.VarChar(20)
+  faculty          String? @db.VarChar(100)
+  academicYear     String? @map("academic_year") @db.VarChar(20)
+  enrollmentStatus String? @map("enrollment_status") @db.VarChar(50)
+  level            Int?
+  userId           Int     @unique @map("user_id")
+
+  user          User           @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  studentFees   StudentFee[]
+  notifications Notification[]
+
+  @@map("students")
+}
+
+model Admin {
+  adminId     Int     @id @default(autoincrement()) @map("admin_id")
+  employeeId  String  @unique @map("employee_id") @db.VarChar(50)
+  firstName   String  @map("first_name") @db.VarChar(100)
+  lastName    String  @map("last_name") @db.VarChar(100)
+  phone       String? @db.VarChar(20)
+  designation String? @db.VarChar(100)
+  userId      Int     @unique @map("user_id")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("admins")
+}
+
+model StudentFee {
+  studentFeeId  Int              @id @default(autoincrement()) @map("student_fee_id")
+  studentId     String           @map("student_id") @db.VarChar(50)
+  feeId         Int              @map("fee_id")
+  status        StudentFeeStatus
+  assignedDate  DateTime         @map("assigned_date") @db.Date
+  semester      String?          @db.VarChar(20)
+  isMandatory   Boolean          @default(true) @map("is_mandatory")
+  penaltyAmount Decimal          @default(0) @map("penalty_amount") @db.Decimal(10, 2)
+
+  student  Student   @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  fee      Fee       @relation(fields: [feeId], references: [feeId], onDelete: Cascade)
+  payments Payment[]
+
+  @@map("student_fees")
+}
+
+enum StudentFeeStatus {
+  Pending
+  Paid
+  Overdue
+}
+
+model Payment {
+  paymentId      Int            @id @default(autoincrement()) @map("payment_id")
+  studentFeeId   Int            @map("student_fee_id")
+  amountPaid     Decimal        @map("amount_paid") @db.Decimal(10, 2)
+  paymentDate    DateTime       @map("payment_date") @db.Date
+  bankSlipUrl    String?        @map("bank_slip_url") @db.VarChar(255)
+  status         PaymentStatus?
+  transactionRef String?        @unique @map("transaction_ref") @db.VarChar(100)
+  receiptNo      String?        @unique @map("receipt_no") @db.VarChar(100)
+  verifiedBy     Int?           @map("verified_by")
+  remarks        String?        @db.Text
+
+  studentFee StudentFee @relation(fields: [studentFeeId], references: [studentFeeId], onDelete: Cascade)
+  verifier   User?      @relation("VerifiedBy", fields: [verifiedBy], references: [userId], onDelete: SetNull)
+
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+model Notification {
+  notificationId   Int                 @id @default(autoincrement()) @map("notification_id")
+  studentId        String              @map("student_id") @db.VarChar(50)
+  notificationType String?             @map("notification_type") @db.VarChar(50)
+  message          String              @db.Text
+  status           NotificationStatus?
+  sentDate         DateTime            @default(now()) @map("sent_date")
+
+  student Student @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationStatus {
+  Read
+  Unread
+}
+
+model AuditLog {
+  logId         Int      @id @default(autoincrement()) @map("log_id")
+  userId        Int      @map("user_id")
+  action        String?  @db.VarChar(100)
+  tableName     String?  @map("table_name") @db.VarChar(100)
+  recordId      String?  @map("record_id") @db.VarChar(100)
+  previousState Json?    @map("previous_state")
+  currentState  Json?    @map("current_state")
+  timestamp     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("audit_logs")
+}
