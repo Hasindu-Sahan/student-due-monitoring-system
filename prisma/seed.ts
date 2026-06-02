@@ -35,7 +35,6 @@ async function main() {
         {
           amount: 75000,
           dueDate: new Date("2026-05-30"),
-          academicYear: "2025/2026",
           feeType: { feeName: "Tuition Fee" },
         },
       ],

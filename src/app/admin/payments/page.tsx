@@ -5,21 +5,23 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
-import { CircleDollarSign, Wallet, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye } from "lucide-react";
+import { CircleDollarSign, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye } from "lucide-react";
 
 type Payment = { paymentId: number; date: string; sid: string; name: string; type: string; amount: number; status: string; bankSlipUrl: string | null };
-type Stats = { totalPaid: number; totalDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
+type Stats = { totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
+const paymentsPerPage = 5;
 
 export default function AdminPayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalPaid: 0, totalDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState<Stats>({ totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [filter, setFilter] = useState("All statuses");
   const [search, setSearch] = useState("");
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewSlip, setViewSlip] = useState<Payment | null>(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const stored = localStorage.getItem("portalUser");
@@ -48,31 +50,9 @@ export default function AdminPayments() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paymentId, status, userId: sessionUserId }),
     });
-    const previousPayment = payments.find((p) => p.paymentId === paymentId);
-    const previousStatus = previousPayment?.status;
-
     setPayments((prev) => prev.map((p) => (p.paymentId === paymentId ? { ...p, status } : p)));
-    setStats((prev) => {
-      // Recompute counts based on status transitions to avoid double-counting
-      // even if user clicks reject multiple times.
-      const nextApproved = prev.approved;
-      const nextPending = prev.pending;
-      const nextRejected = prev.rejected;
-
-      let approved = nextApproved;
-      let pending = nextPending;
-      let rejected = nextRejected;
-
-      if (previousStatus === "Approved") approved = Math.max(0, approved - 1);
-      if (previousStatus === "Pending") pending = Math.max(0, pending - 1);
-      if (previousStatus === "Rejected") rejected = Math.max(0, rejected - 1);
-
-      if (status === "Approved") approved += 1;
-      if (status === "Pending") pending += 1;
-      if (status === "Rejected") rejected += 1;
-
-      return { ...prev, approved, pending, rejected };
-    });
+    const nextStats = await fetch("/api/admin/stats").then(r => r.json());
+    setStats(nextStats);
   };
 
   const filtered = payments.filter((payment) => {
@@ -81,13 +61,20 @@ export default function AdminPayments() {
     const matchesSearch = !text || payment.sid.toLowerCase().includes(text) || payment.name.toLowerCase().includes(text);
     return matchesStatus && matchesSearch;
   });
+  const totalPages = Math.max(1, Math.ceil(filtered.length / paymentsPerPage));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * paymentsPerPage, currentPage * paymentsPerPage);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, search]);
 
   return (
     <PortalLayout role="admin" user={{ name: `${admin.firstName} ${admin.lastName}`.trim(), sub: admin.designation, initials: `${admin.firstName?.[0] ?? "A"}${admin.lastName?.[0] ?? ""}` }} title="Payments" subtitle="Review and approve submitted bank slips">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <SummaryCard label="Remaining Dues" value={lkr(stats.totalDues)} tone="primary" icon={CircleDollarSign} />
-        <SummaryCard label="Total Received" value={lkr(stats.totalPaid)} tone="success" icon={Wallet} />
-        <SummaryCard label="Overdue" value={lkr(stats.totalOverdue)} tone="destructive" icon={AlertOctagon} />
+        <SummaryCard label="Total Remaining Dues" value={lkr(stats.totalRemainingDues)} tone="primary" icon={CircleDollarSign} />
+        <SummaryCard label="Total Pending Dues" value={lkr(stats.totalPendingDues)} tone="warning" icon={Clock} />
+        <SummaryCard label="Total Overdue Amount" value={lkr(stats.totalOverdue)} tone="destructive" icon={AlertOctagon} />
         <SummaryCard label="Approved" value={String(stats.approved)} tone="success" icon={CheckCircle2} />
         <SummaryCard label="Pending" value={String(stats.pending)} tone="warning" icon={Clock} />
         <SummaryCard label="Rejected" value={String(stats.rejected)} tone="destructive" icon={XCircle} />
@@ -122,7 +109,7 @@ export default function AdminPayments() {
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Loading...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">No payments found</td></tr>
-              ) : filtered.map((p) => (
+              ) : paginated.map((p) => (
                 <tr key={p.paymentId} className="border-b last:border-0 transition hover:bg-muted/30">
                   <td className="px-6 py-4 text-muted-foreground">{p.date}</td>
                   <td className="px-6 py-4 font-mono text-xs">{p.sid}</td>
@@ -155,10 +142,11 @@ export default function AdminPayments() {
           </table>
         </div>
         <div className="flex items-center justify-between border-t px-6 py-3 text-xs text-muted-foreground">
-          <span>Showing {filtered.length} payments</span>
+          <span>Showing {filtered.length === 0 ? 0 : (currentPage - 1) * paymentsPerPage + 1}-{Math.min(currentPage * paymentsPerPage, filtered.length)} of {filtered.length} payments</span>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1 rounded-lg border px-3 py-1.5 transition hover:bg-accent"><ChevronLeft className="h-3.5 w-3.5" /> Previous</button>
-            <button className="flex items-center gap-1 rounded-lg border bg-card px-3 py-1.5 font-medium text-foreground transition hover:bg-accent">Next <ChevronRight className="h-3.5 w-3.5" /></button>
+            <button disabled={currentPage === 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))} className="flex items-center gap-1 rounded-lg border px-3 py-1.5 transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"><ChevronLeft className="h-3.5 w-3.5" /> Previous</button>
+            <span>Page {currentPage} of {totalPages}</span>
+            <button disabled={currentPage === totalPages} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} className="flex items-center gap-1 rounded-lg border bg-card px-3 py-1.5 font-medium text-foreground transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50">Next <ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       </div>
@@ -178,7 +166,11 @@ export default function AdminPayments() {
             </div>
             {viewSlip.bankSlipUrl ? (
               <div className="mb-6">
-                <img src={viewSlip.bankSlipUrl} alt="Bank Slip" className="max-w-full rounded-lg border" />
+                {viewSlip.bankSlipUrl.toLowerCase().endsWith(".pdf") ? (
+                  <iframe src={viewSlip.bankSlipUrl} title="Bank Slip" className="h-[70vh] w-full rounded-lg border" />
+                ) : (
+                  <img src={viewSlip.bankSlipUrl} alt="Bank Slip" className="max-w-full rounded-lg border" />
+                )}
               </div>
             ) : (
               <div className="mb-6 rounded-lg border border-dashed p-8 text-center text-muted-foreground">No slip image available</div>

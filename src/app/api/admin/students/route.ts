@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       // Prisma types in this repo currently do not expose Student.level in generated client.
       // Keep it null to avoid build failures.
       level: (student as any).level ?? null,
-      academicYear: student.academicYear ?? "",
+      
     })));
 
   } catch (error) {

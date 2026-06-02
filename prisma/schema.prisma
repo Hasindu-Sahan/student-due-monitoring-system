@@ -45,7 +45,7 @@ model Fee {
   feeTypeId    Int      @map("fee_type_id")
   amount       Decimal  @db.Decimal(10, 2)
   dueDate      DateTime? @map("due_date") @db.Date
-  academicYear String?   @map("academic_year") @db.VarChar(20)
+  
 
   feeType     FeeType      @relation(fields: [feeTypeId], references: [feeTypeId], onDelete: Cascade)
   studentFees StudentFee[]
@@ -60,7 +60,7 @@ model Student {
   email            String  @db.VarChar(150)
   phone            String? @db.VarChar(20)
   faculty          String? @db.VarChar(100)
-  academicYear     String? @map("academic_year") @db.VarChar(20)
+  
   enrollmentStatus String? @map("enrollment_status") @db.VarChar(50)
   level            Int?
   userId           Int     @unique @map("user_id")

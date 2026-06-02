@@ -23,8 +23,9 @@ type NavItem = { to: string; label: string; icon: LucideIcon };
 
 const studentNav: NavItem[] = [
   { to: "/student", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/student/account", label: "Account", icon: UserCircle2 },
   { to: "/student/payment", label: "Payment", icon: CreditCard },
+  { to: "/student/notifications", label: "Notifications", icon: Bell },
+  { to: "/student/account", label: "Account", icon: UserCircle2 },
 ];
 
 const adminNav: NavItem[] = [
@@ -55,10 +56,9 @@ export function PortalLayout({
   const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
-    if (role !== "admin") return;
-
     const loadUnread = () => {
-      fetch("/api/admin/notifications")
+      const route = role === "admin" ? "/api/admin/notifications" : "/api/student/notifications";
+      fetch(route)
         .then((r) => r.json())
         .then((notifications) => {
           if (Array.isArray(notifications)) {
@@ -141,7 +141,7 @@ export function PortalLayout({
             {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <div className="flex items-center gap-3">
-            <Link href={role === "admin" ? "/admin/notifications" : "#"} className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:text-foreground">
+            <Link href={role === "admin" ? "/admin/notifications" : "/student/notifications"} className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:text-foreground">
               <Bell className="h-[18px] w-[18px]" />
               {hasUnread && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />}
             </Link>

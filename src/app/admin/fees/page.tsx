@@ -7,7 +7,7 @@ import { Plus, Save, Pencil, Trash2, Search, ArrowUpDown } from "lucide-react";
 
 type Fee = { feeId: number; type: string; feeTypeId: number; category: string; amount: number; due: string; year: string };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
-type StudentOption = { id: string; name: string; faculty: string; level: number | null; academicYear: string };
+type StudentOption = { id: string; name: string; faculty: string; level: number | null };
 
 type InputProps = { label: string } & React.InputHTMLAttributes<HTMLInputElement>;
 

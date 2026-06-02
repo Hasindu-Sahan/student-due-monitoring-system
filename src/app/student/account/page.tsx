@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { KeyRound, UserCog, Mail, Phone, GraduationCap, Calendar, BadgeCheck, Hash } from "lucide-react";
 
-type StudentProfile = { id: string; firstName: string; lastName: string; email: string; phone: string; faculty: string; academicYear: string; status: string };
+type StudentProfile = { id: string; firstName: string; lastName: string; email: string; phone: string; faculty: string; level?: number | null; status: string };
 
 function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
@@ -68,7 +68,7 @@ export default function StudentAccount() {
             <Field icon={Mail} label="Email" value={student.email} />
             <Field icon={Phone} label="Phone" value={student.phone} />
             <Field icon={GraduationCap} label="Faculty" value={student.faculty} />
-            <Field icon={Calendar} label="Academic Year" value={student.academicYear} />
+            <Field icon={Calendar} label="Level" value={student.level ? `Level ${student.level}` : ""} />
           </div>
           <p className="mt-4 text-xs text-muted-foreground">Personal details are view-only. Contact the registrar to request changes.</p>
         </div>

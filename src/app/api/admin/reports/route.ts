@@ -2,34 +2,52 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
 
-function buildPaymentWhere(filters: Record<string, string>) {
+function buildStudentFeeWhere(filters: Record<string, string>) {
   const where: Record<string, unknown> = {};
 
   if (filters.startDate || filters.endDate) {
-    where.paymentDate = {
+    where.assignedDate = {
       ...(filters.startDate ? { gte: new Date(filters.startDate) } : {}),
       ...(filters.endDate ? { lte: new Date(filters.endDate) } : {}),
     };
   }
 
   if (filters.faculty) {
-    where.studentFee = { student: { faculty: filters.faculty } };
+    where.student = { faculty: filters.faculty === "none" ? null : filters.faculty };
   }
 
   if (filters.level) {
     const level = Number(filters.level);
     if (!Number.isNaN(level)) {
-      where.studentFee = {
-        ...(typeof where.studentFee === "object" && where.studentFee ? (where.studentFee as Record<string, unknown>) : {}),
-        student: {
-          ...(typeof (where.studentFee as any)?.student === "object" && (where.studentFee as any)?.student ? (where.studentFee as any).student : {}),
-          level,
-        },
+      where.student = {
+        ...(typeof where.student === "object" && where.student ? (where.student as Record<string, unknown>) : {}),
+        level,
       };
     }
   }
 
+  if (filters.feeCategory) {
+    where.fee = { feeType: { category: filters.feeCategory === "none" ? null : filters.feeCategory } };
+  }
+
+  if (filters.feeType) {
+    where.fee = {
+      ...(typeof where.fee === "object" && where.fee ? (where.fee as Record<string, unknown>) : {}),
+      feeType: {
+        ...(typeof (where.fee as any)?.feeType === "object" && (where.fee as any)?.feeType ? (where.fee as any).feeType : {}),
+        feeName: filters.feeType,
+      },
+    };
+  }
+
   return where;
+}
+
+function paymentReportStatus(status?: string | null) {
+  if (status === "Approved") return "Paid";
+  if (status === "Rejected") return "Rejected";
+  if (status === "Pending") return "Pending";
+  return "Not Paid";
 }
 
 function filterLabel(filters: Record<string, string>, fileType?: string) {
@@ -50,7 +68,7 @@ export async function GET() {
         select: { category: true },
       }),
       prisma.student.findMany({
-        select: { faculty: true, academicYear: true },
+        select: { faculty: true, level: true },
         orderBy: { studentId: "asc" },
       }),
       prisma.auditLog.findMany({
@@ -75,13 +93,14 @@ export async function GET() {
         ? `${admin.firstName} ${admin.lastName}`
         : log.user.username;
 
-      const currentState = (log as any).currentState as { fileType?: string } | null;
+      const currentState = (log as any).currentState as { fileType?: string; filters?: Record<string, string> } | null;
       return {
         id: log.logId,
         date: log.timestamp.toISOString().split("T")[0],
-        by: generatedBy,
+        by: admin?.employeeId ?? generatedBy,
         filter: log.action ?? "Report generated",
         fileType: currentState?.fileType ?? "report",
+        filters: currentState?.filters ?? {},
       };
     });
 
@@ -101,41 +120,43 @@ export async function POST(req: NextRequest) {
   try {
     const { filters = {}, fileType = "pdf", userId } = await req.json();
 
-    const payments = await prisma.payment.findMany({
-      where: buildPaymentWhere(filters),
+    const studentFees = await prisma.studentFee.findMany({
+      where: buildStudentFeeWhere(filters),
       include: {
-        studentFee: {
-          include: {
-            student: true,
-            fee: { include: { feeType: true } },
-          },
-        },
+        student: true,
+        fee: { include: { feeType: true } },
+        payments: { orderBy: { paymentId: "desc" }, take: 1 },
       },
-      orderBy: { paymentDate: "desc" },
+      orderBy: { assignedDate: "desc" },
       take: 500,
     });
 
-    const rows = payments
-      .filter((payment) => {
-        const student = payment.studentFee.student;
-        const fee = payment.studentFee.fee;
+    const rows = studentFees
+      .filter((studentFee) => {
+        const student = studentFee.student;
         const name = `${student.firstName} ${student.lastName}`.toLowerCase();
         const studentQuery = String(filters.student ?? "").toLowerCase();
-        return (!filters.feeCategory ||
-          (filters.feeCategory === "none"
-            ? !fee.feeType.category
-            : (fee.feeType.category ?? "") === filters.feeCategory))
-          && (!filters.feeType || fee.feeType.feeName === filters.feeType)
+        const latestPayment = studentFee.payments[0];
+        const status = paymentReportStatus(latestPayment?.status);
+        const paymentStatus = String(filters.paymentStatus ?? "All");
+        const matchesPaymentStatus =
+          !paymentStatus ||
+          paymentStatus === "All" ||
+          (paymentStatus === "Paid" && status === "Paid") ||
+          (paymentStatus === "Rejected" && status === "Rejected") ||
+          (paymentStatus === "Not Paid" && (status === "Not Paid" || status === "Rejected"));
+
+        return matchesPaymentStatus
           && (!studentQuery || student.studentId.toLowerCase().includes(studentQuery) || name.includes(studentQuery));
       })
-      .map((payment) => ({
-        date: payment.paymentDate.toISOString().split("T")[0],
-        studentId: payment.studentFee.student.studentId,
-        studentName: `${payment.studentFee.student.firstName} ${payment.studentFee.student.lastName}`,
-        faculty: payment.studentFee.student.faculty ?? "",
-        feeType: payment.studentFee.fee.feeType.feeName,
-        amount: Number(payment.amountPaid),
-        status: payment.status ?? "Pending",
+      .map((studentFee) => ({
+        date: (studentFee.payments[0]?.paymentDate ?? studentFee.assignedDate).toISOString().split("T")[0],
+        studentId: studentFee.student.studentId,
+        studentName: `${studentFee.student.firstName} ${studentFee.student.lastName}`,
+        faculty: studentFee.student.faculty ?? "",
+        feeType: studentFee.fee.feeType.feeName,
+        amount: Number(studentFee.payments[0]?.amountPaid ?? studentFee.fee.amount) + Number(studentFee.penaltyAmount),
+        status: paymentReportStatus(studentFee.payments[0]?.status),
       }));
 
     const action = filterLabel(filters, fileType);

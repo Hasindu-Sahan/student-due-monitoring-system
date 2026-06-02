@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
-import { FileText, FileSpreadsheet, Filter, Download, ArrowUpDown } from "lucide-react";
+import { FileText, FileSpreadsheet, Filter, ArrowUpDown } from "lucide-react";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -18,9 +18,10 @@ const inputCls = "h-10 w-full rounded-xl border bg-card px-3 text-sm outline-non
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 
 type ReportsData = {
+  feeTypes: string[];
   feeCategories: string[];
   faculties: string[];
-  reports: { id: number; date: string; by: string; filter: string }[];
+  reports: { id: number; date: string; by: string; filter: string; filters: ReportsFilters }[];
 };
 
 type ReportsFilters = {
@@ -31,11 +32,12 @@ type ReportsFilters = {
   feeCategory: string;
   feeType: string;
   student: string;
+  paymentStatus: string;
 };
 
 export default function Reports() {
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
-  const [data, setData] = useState<ReportsData>({ feeCategories: [], faculties: [], reports: [] });
+  const [data, setData] = useState<ReportsData>({ feeTypes: [], feeCategories: [], faculties: [], reports: [] });
   const [filters, setFilters] = useState<ReportsFilters>({
     startDate: "",
     endDate: "",
@@ -44,6 +46,7 @@ export default function Reports() {
     feeCategory: "",
     feeType: "",
     student: "",
+    paymentStatus: "All",
   });
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,16 +78,7 @@ export default function Reports() {
     if (!reportsData.error) setData(reportsData);
   };
 
-  const generateReport = async (fileType: "pdf" | "excel") => {
-    const res = await fetch("/api/admin/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filters, fileType, userId: sessionUserId }),
-    });
-
-    const report = await res.json();
-    if (report.error) return;
-
+  const saveReport = (report: { rows: Array<Record<string, string | number>>; filter: string }, fileType: "pdf" | "excel") => {
     if (fileType === "excel") {
       const header = ["Date", "Student ID", "Student Name", "Faculty", "Fee Type", "Amount", "Status"];
       const rows: Array<Array<string | number>> = report.rows.map((row: Record<string, string | number>) => [
@@ -122,12 +116,24 @@ export default function Reports() {
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
       window.open(url, "_blank");
     }
+  };
 
+  const generateReport = async (fileType: "pdf" | "excel", reportFilters = filters) => {
+    const res = await fetch("/api/admin/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filters: reportFilters, fileType, userId: sessionUserId }),
+    });
+
+    const report = await res.json();
+    if (report.error) return;
+
+    saveReport(report, fileType);
     reloadReports();
   };
 
   const resetFilters = () =>
-    setFilters({ startDate: "", endDate: "", faculty: "", level: "", feeCategory: "", feeType: "", student: "" });
+    setFilters({ startDate: "", endDate: "", faculty: "", level: "", feeCategory: "", feeType: "", student: "", paymentStatus: "All" });
 
   return (
     <PortalLayout
@@ -196,13 +202,20 @@ export default function Reports() {
             <select className={inputCls} value={filters.feeType} onChange={(e) => setFilters({ ...filters, feeType: e.target.value })}>
               <option value="">All Fee Types</option>
               <option value="none">none</option>
-              {Array.isArray((data as any).feeTypes)
-                ? (data as any).feeTypes.map((feeType: string) => (
-                    <option key={feeType} value={feeType}>
-                      {feeType}
-                    </option>
-                  ))
-                : null}
+              {data.feeTypes.map((feeType: string) => (
+                <option key={feeType} value={feeType}>
+                  {feeType}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Payment status">
+            <select className={inputCls} value={filters.paymentStatus} onChange={(e) => setFilters({ ...filters, paymentStatus: e.target.value })}>
+              <option value="All">All</option>
+              <option value="Paid">Paid</option>
+              <option value="Not Paid">Not Paid</option>
+              <option value="Rejected">Rejected</option>
             </select>
           </Field>
 
@@ -283,14 +296,11 @@ export default function Reports() {
                     <td className="px-6 py-4 text-muted-foreground">{r.filter}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <button className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive-soft px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive hover:text-destructive-foreground">
+                        <button onClick={() => generateReport("pdf", r.filters)} className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/20 bg-destructive-soft px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive hover:text-destructive-foreground">
                           <FileText className="h-3.5 w-3.5" /> PDF
                         </button>
-                        <button className="inline-flex items-center gap-1.5 rounded-lg border border-success/20 bg-success-soft px-2.5 py-1.5 text-xs font-medium text-success transition hover:bg-success hover:text-success-foreground">
+                        <button onClick={() => generateReport("excel", r.filters)} className="inline-flex items-center gap-1.5 rounded-lg border border-success/20 bg-success-soft px-2.5 py-1.5 text-xs font-medium text-success transition hover:bg-success hover:text-success-foreground">
                           <FileSpreadsheet className="h-3.5 w-3.5" /> Excel
-                        </button>
-                        <button className="rounded-lg border p-1.5 text-muted-foreground transition hover:bg-accent">
-                          <Download className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </td>
@@ -304,4 +314,3 @@ export default function Reports() {
     </PortalLayout>
   );
 }
-

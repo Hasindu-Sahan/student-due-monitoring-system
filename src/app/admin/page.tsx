@@ -5,20 +5,20 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
-import { CircleDollarSign, Wallet, AlertOctagon, Check, X, ArrowUpDown, Eye } from "lucide-react";
+import { AlertOctagon, Check, CheckCircle2, CircleDollarSign, Clock, X, XCircle, ArrowUpDown, Eye } from "lucide-react";
 
 type Payment = { paymentId: number; date: string; sid: string; name: string; type: string; amount: number; status: string; bankSlipUrl: string | null };
-type Stats = { totalPaid: number; totalDues: number; totalOverdue: number };
+type Stats = { totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 
 export default function AdminDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalPaid: 0, totalDues: 0, totalOverdue: 0 });
+  const [stats, setStats] = useState<Stats>({ totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [loading, setLoading] = useState(true);
   const [viewSlip, setViewSlip] = useState<Payment | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     const params = new URLSearchParams();
@@ -36,6 +36,10 @@ export default function AdminDashboard() {
       if (!a.error) setAdmin(a);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    load();
   }, []);
 
   const updateStatus = async (paymentId: number, status: string) => {
@@ -45,14 +49,19 @@ export default function AdminDashboard() {
       body: JSON.stringify({ paymentId, status }),
     });
     setPayments(prev => prev.map(p => p.paymentId === paymentId ? { ...p, status } : p));
+    const nextStats = await fetch("/api/admin/stats").then(r => r.json());
+    setStats(nextStats);
   };
 
   return (
     <PortalLayout role="admin" user={{ name: `${admin.firstName} ${admin.lastName}`.trim(), sub: admin.designation, initials: `${admin.firstName?.[0] ?? "A"}${admin.lastName?.[0] ?? ""}` }} title="Admin Dashboard" subtitle="Bursar's overview">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <SummaryCard label="Total Remaining Dues" value={lkr(stats.totalDues)} tone="primary" icon={CircleDollarSign} />
-        <SummaryCard label="Total Received" value={lkr(stats.totalPaid)} tone="success" icon={Wallet} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <SummaryCard label="Total Remaining Dues" value={lkr(stats.totalRemainingDues)} tone="primary" icon={CircleDollarSign} />
+        <SummaryCard label="Total Pending Dues" value={lkr(stats.totalPendingDues)} tone="warning" icon={Clock} />
         <SummaryCard label="Total Overdue Amount" value={lkr(stats.totalOverdue)} tone="destructive" icon={AlertOctagon} />
+        <SummaryCard label="Approved" value={String(stats.approved)} tone="success" icon={CheckCircle2} />
+        <SummaryCard label="Pending" value={String(stats.pending)} tone="warning" icon={Clock} />
+        <SummaryCard label="Rejected" value={String(stats.rejected)} tone="destructive" icon={XCircle} />
       </div>
 
       <div className="mt-6 rounded-2xl border bg-card shadow-card">
@@ -127,7 +136,11 @@ export default function AdminDashboard() {
             </div>
             {viewSlip.bankSlipUrl ? (
               <div className="mb-6">
-                <img src={viewSlip.bankSlipUrl} alt="Bank Slip" className="max-w-full rounded-lg border" />
+                {viewSlip.bankSlipUrl.toLowerCase().endsWith(".pdf") ? (
+                  <iframe src={viewSlip.bankSlipUrl} title="Bank Slip" className="h-[70vh] w-full rounded-lg border" />
+                ) : (
+                  <img src={viewSlip.bankSlipUrl} alt="Bank Slip" className="max-w-full rounded-lg border" />
+                )}
               </div>
             ) : (
               <div className="mb-6 rounded-lg border border-dashed p-8 text-center text-muted-foreground">No slip image available</div>

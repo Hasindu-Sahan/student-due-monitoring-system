@@ -5,14 +5,14 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
-import { Wallet, CircleDollarSign, AlertOctagon, ArrowUpDown } from "lucide-react";
+import { CircleDollarSign, AlertOctagon, ArrowUpDown, Clock } from "lucide-react";
 
-type Fee = { studentFeeId: number; type: string; due: string; penalty: number; amount: number; status: string; approval: string | null };
-type Data = { fees: Fee[]; totalPaid: number; totalDues: number; totalOverdue: number };
-type StudentProfile = { firstName: string; lastName: string; faculty: string; academicYear: string; id: string };
+type Fee = { studentFeeId: number; type: string; category: string; due: string; penalty: number; amount: number; paid?: number; status: string; approval: string | null };
+type Data = { fees: Fee[]; totalPaid: number; totalDues: number; totalPendingDues: number; totalOverdue: number };
+type StudentProfile = { firstName: string; lastName: string; faculty: string; level?: number | null; id: string };
 
-const emptyData: Data = { fees: [], totalPaid: 0, totalDues: 0, totalOverdue: 0 };
-const defaultStudent: StudentProfile = { firstName: "Student", lastName: "", faculty: "", academicYear: "", id: "" };
+const emptyData: Data = { fees: [], totalPaid: 0, totalDues: 0, totalPendingDues: 0, totalOverdue: 0 };
+const defaultStudent: StudentProfile = { firstName: "Student", lastName: "", faculty: "", level: null, id: "" };
 
 function isStudentProfile(value: unknown): value is StudentProfile {
   return Boolean(value && typeof value === "object" && "firstName" in value);
@@ -27,7 +27,7 @@ export default function StudentDashboard() {
   const [student, setStudent] = useState<StudentProfile>(defaultStudent);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = () => {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     const params = new URLSearchParams();
@@ -47,6 +47,12 @@ export default function StudentDashboard() {
       setStudent(defaultStudent);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    load();
+    const refresh = window.setInterval(load, 10000);
+    return () => window.clearInterval(refresh);
   }, []);
 
   const name = `${student.firstName} ${student.lastName}`.trim();
@@ -57,11 +63,11 @@ export default function StudentDashboard() {
       role="student"
       user={{ name, sub: student.id, initials }}
       title={`Welcome back, ${student.firstName}`}
-      subtitle={`${student.faculty} · ${student.academicYear}`}
+      subtitle={`${student.faculty} · ${student.level ? `Level ${student.level}` : ""}`}
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <SummaryCard label="Total Paid" value={lkr(data.totalPaid)} tone="success" icon={Wallet} />
         <SummaryCard label="Total Remaining Dues" value={lkr(data.totalDues)} tone="primary" icon={CircleDollarSign} />
+        <SummaryCard label="Total Pending Dues" value={lkr(data.totalPendingDues)} tone="warning" icon={Clock} />
         <SummaryCard label="Total Overdue Amount" value={lkr(data.totalOverdue)} tone="destructive" icon={AlertOctagon} />
       </div>
 
@@ -76,7 +82,7 @@ export default function StudentDashboard() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                {["Fee Type", "Due Date", "Penalty", "Amount", "Status"].map((h) => (
+                {["Fee Type", "Category", "Due Date", "Amount", "Status"].map((h) => (
                   <th key={h} className="px-6 py-3 font-medium">
                     <span className="inline-flex items-center gap-1.5">{h} <ArrowUpDown className="h-3 w-3 opacity-50" /></span>
                   </th>
@@ -91,8 +97,8 @@ export default function StudentDashboard() {
               ) : data.fees.map((f) => (
                 <tr key={f.studentFeeId} className="border-b last:border-0 transition hover:bg-muted/30">
                   <td className="px-6 py-4 font-medium">{f.type}</td>
+                  <td className="px-6 py-4"><span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{f.category}</span></td>
                   <td className="px-6 py-4 text-muted-foreground">{f.due}</td>
-                  <td className="px-6 py-4 text-muted-foreground">{f.penalty ? lkr(f.penalty) : "—"}</td>
                   <td className="px-6 py-4 font-semibold tabular-nums">{lkr(f.amount)}</td>
                   <td className="px-6 py-4"><StatusBadge status={f.status} /></td>
                 </tr>

@@ -4,8 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "npm run clean && next dev",
     "build": "next build",
     "start": "next start",
+    "clean": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true });\"",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

@@ -10,20 +10,17 @@ function formatFee(fee: any) {
     category: fee.feeType.category ?? "",
     amount: Number(fee.amount),
     due: fee.dueDate?.toISOString().split("T")[0] ?? "",
-    year: fee.academicYear ?? "",
   };
 }
 
 function buildStudentWhere(filters: {
   faculty?: string;
   level?: string;
-  academicYear?: string;
   studentSearch?: string;
 }) {
   const where: Record<string, unknown> = {};
   if (filters.faculty && filters.faculty !== "none") where.faculty = filters.faculty;
   if (filters.level && filters.level !== "none") where.level = Number(filters.level);
-  if (filters.academicYear) where.academicYear = filters.academicYear;
   if (filters.studentSearch) {
     where.OR = [
       { studentId: { contains: filters.studentSearch, mode: "insensitive" } },
@@ -53,7 +50,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { feeName, category, description, amount, dueDate, academicYear, receiverFilters, userId } = await req.json();
+    const { feeName, category, description, amount, dueDate, receiverFilters, userId } = await req.json();
 
     if (!feeName || !category || !description || amount == null || Number.isNaN(Number(amount))) {
       return NextResponse.json({ error: "Fee type, category, description, and amount are required" }, { status: 400 });
@@ -74,13 +71,12 @@ export async function POST(req: NextRequest) {
         feeTypeId: feeType.feeTypeId,
         amount: Number(amount),
         dueDate: dueDate ? new Date(dueDate) : new Date(0),
-        academicYear: academicYear || null,
       },
       include: { feeType: true },
     });
 
     const filters = receiverFilters ?? {};
-    const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.academicYear || filters.studentSearch);
+    const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.studentSearch);
     let assignedCount = 0;
 
     if (hasReceiverFilter) {
@@ -121,7 +117,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { feeId, amount, dueDate, academicYear, category, description, receiverFilters, userId } = await req.json();
+    const { feeId, amount, dueDate, category, description, receiverFilters, userId } = await req.json();
     const previous = await prisma.fee.findUnique({
       where: { feeId },
       include: { feeType: true, studentFees: true },
@@ -136,14 +132,13 @@ export async function PATCH(req: NextRequest) {
       data: {
         amount: Number(amount),
         dueDate: dueDate ? new Date(dueDate) : new Date(0),
-        academicYear: academicYear || null,
         feeType: { update: { category, ...(description !== undefined ? { description } : {}) } },
       },
       include: { feeType: true },
     });
 
     const filters = receiverFilters ?? {};
-    const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.academicYear || filters.studentSearch);
+    const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.studentSearch);
     let assignedCount = previous.studentFees.length;
 
     if (hasReceiverFilter) {

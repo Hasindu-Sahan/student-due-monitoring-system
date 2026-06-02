@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       email: student.email,
       phone: student.phone ?? "",
       faculty: student.faculty ?? "",
-      academicYear: student.academicYear ?? "",
+      level: student.level ?? null,
       status: student.enrollmentStatus ?? "Active",
     });
   } catch (error) {

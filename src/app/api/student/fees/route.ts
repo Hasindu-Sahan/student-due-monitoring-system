@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (!student) {
-      return NextResponse.json({ fees: [], totalPaid: 0, totalDues: 0, totalOverdue: 0 });
+      return NextResponse.json({ fees: [], totalPaid: 0, totalDues: 0, totalPendingDues: 0, totalOverdue: 0 });
     }
 
     // Note: Prisma types in this repo currently don't expose Student.level in generated types.
@@ -38,35 +38,45 @@ export async function GET(req: NextRequest) {
         studentId: student.studentId,
       },
       include: {
-        fee: { include: { feeType: true } },
-        payments: { orderBy: { paymentDate: "desc" }, take: 1 },
-      },
+          fee: { include: { feeType: true } },
+          payments: { orderBy: { paymentId: "desc" } },
+        },
       orderBy: { assignedDate: "desc" },
     });
 
-    const formatted = studentFees.map((sf) => ({
-      studentFeeId: sf.studentFeeId,
-      type: sf.fee.feeType.feeName,
-      due: sf.fee.dueDate.toISOString().split("T")[0],
-      penalty: Number(sf.penaltyAmount),
-      amount: Number(sf.fee.amount),
-      status: sf.status,
-      approval: sf.payments[0]?.status ?? null,
-      paymentId: sf.payments[0]?.paymentId ?? null,
-    }));
+    const formatted = studentFees.map((sf) => {
+      const latestPayment = sf.payments[0];
+      const paid = latestPayment?.status === "Approved" ? Number(latestPayment.amountPaid) : 0;
+      return {
+        studentFeeId: sf.studentFeeId,
+        type: sf.fee.feeType.feeName,
+        category: sf.fee.feeType.category ?? "",
+        due: sf.fee.dueDate ? sf.fee.dueDate.toISOString().split("T")[0] : "",
+        penalty: Number(sf.penaltyAmount),
+        amount: Number(sf.fee.amount),
+        paid,
+        status: sf.status,
+        approval: latestPayment?.status ?? null,
+        paymentId: latestPayment?.paymentId ?? null,
+        bankSlipUrl: latestPayment?.bankSlipUrl ?? null,
+      };
+    });
 
-    // Totals
-    const totalPaid = formatted
-      .filter((f) => f.status === "Paid")
-      .reduce((s, f) => s + f.amount, 0);
-    const totalDues = formatted
-      .filter((f) => f.status !== "Paid")
-      .reduce((s, f) => s + f.amount + f.penalty, 0);
+    // Totals computed from payments and remaining per fee
+    const totalPaid = formatted.reduce((s, f) => s + (f.paid ?? 0), 0);
+    const totalDues = formatted.reduce((s, f) => {
+      const remaining = Math.max(0, f.amount - (f.paid ?? 0) + (f.penalty ?? 0));
+      return s + remaining;
+    }, 0);
     const totalOverdue = formatted
       .filter((f) => f.status === "Overdue")
-      .reduce((s, f) => s + f.amount + f.penalty, 0);
+      .reduce((s, f) => s + Math.max(0, f.amount - (f.paid ?? 0) + (f.penalty ?? 0)), 0);
+    const totalPendingDues = studentFees.reduce((sum, sf) => {
+      const latestPayment = sf.payments[0];
+      return latestPayment?.status === "Pending" ? sum + Number(latestPayment.amountPaid) : sum;
+    }, 0);
 
-    return NextResponse.json({ fees: formatted, totalPaid, totalDues, totalOverdue });
+    return NextResponse.json({ fees: formatted, totalPaid, totalDues, totalPendingDues, totalOverdue });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch student fees" }, { status: 500 });

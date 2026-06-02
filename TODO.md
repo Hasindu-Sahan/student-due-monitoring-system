@@ -13,11 +13,13 @@
 - [ ] Interpret filters.level === "none" similarly if applicable (based on student.level)
 - [ ] Ensure academicYear-related assignment is removed only if UI stops sending it (backend can keep academicYear logic, but UI won’t send it)
 
+
 ## Step 3: Update Reports UI
 - [ ] Remove Academic Year filter UI
 - [ ] Add new "Fee category" filter dropdown
 - [ ] Add "none" option to all remaining filter dropdowns/selects
 - [ ] Update resetFilters + filter state shape
+
 
 ## Step 4: Update Reports API
 - [ ] Provide fee category options from feeType.category
@@ -25,6 +27,19 @@
 - [ ] Interpret "fee category" = "none" as category is null/empty
 - [ ] Remove academicYear filtering from in-memory rows
 
+
 ## Step 5: Verify
 - [ ] Run lint/build
 - [ ] Manual UI verification: dropdown options, form fields, tables, report generation
+
+
+# TODO - Login page UX improvements
+
+## Step 6: Improve login page usability
+- [x] Add client-side required-field validation for username/password
+- [ ] Improve error messaging (field-level + banner)
+- [ ] Add password visibility toggle
+- [ ] Make Remember me functional using localStorage
+- [ ] Improve accessibility (id/htmlFor, aria-invalid, aria-describedby)
+- [ ] Add network error handling (try/catch) and reserved error area to prevent layout shift
+

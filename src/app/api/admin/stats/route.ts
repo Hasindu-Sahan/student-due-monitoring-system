@@ -6,21 +6,41 @@ export async function GET() {
     const studentFees = await prisma.studentFee.findMany({
       include: { fee: true, payments: true },
     });
+    const payments = await prisma.payment.findMany({
+      orderBy: { paymentId: "desc" },
+      select: { studentFeeId: true, amountPaid: true, status: true },
+    });
+    const latestPayments = Array.from(
+      payments.reduce((latest, payment) => {
+        if (!latest.has(payment.studentFeeId)) latest.set(payment.studentFeeId, payment);
+        return latest;
+      }, new Map<number, (typeof payments)[number]>()).values(),
+    );
 
-    let totalPaid = 0;
-    let totalDues = 0;
+    let totalRemainingDues = 0;
     let totalOverdue = 0;
 
     for (const sf of studentFees) {
       const amount = Number(sf.fee.amount) + Number(sf.penaltyAmount);
-      if (sf.status === "Paid") totalPaid += amount;
-      else if (sf.status === "Pending") totalDues += amount;
-      else if (sf.status === "Overdue") totalOverdue += amount;
+      const latestPayment = [...sf.payments].sort((a, b) => b.paymentId - a.paymentId)[0];
+      const isApproved = latestPayment?.status === "Approved";
+      const isPendingApproval = latestPayment?.status === "Pending";
+
+      if (!isApproved && !isPendingApproval) totalRemainingDues += amount;
+      if (!isApproved && sf.fee.dueDate && sf.fee.dueDate < new Date()) totalOverdue += amount;
     }
 
-    const approved = await prisma.payment.count({ where: { status: "Approved" } });
-    const pending = await prisma.payment.count({ where: { status: "Pending" } });
-    const rejected = await prisma.payment.count({ where: { status: "Rejected" } });
+    const approved = latestPayments.filter((payment) => payment.status === "Approved").length;
+    const pending = latestPayments.filter((payment) => payment.status === "Pending").length;
+    const rejected = latestPayments.filter((payment) => payment.status === "Rejected").length;
+    const totalPendingDues = latestPayments.reduce(
+      (sum, payment) => (payment.status === "Pending" ? sum + Number(payment.amountPaid) : sum),
+      0,
+    );
+    const totalPaid = latestPayments.reduce(
+      (sum, payment) => (payment.status === "Approved" ? sum + Number(payment.amountPaid) : sum),
+      0,
+    );
     const activeStudents = await prisma.student.count({
       where: { enrollmentStatus: { equals: "Active", mode: "insensitive" } },
     });
@@ -30,7 +50,9 @@ export async function GET() {
 
     return NextResponse.json({
       totalPaid,
-      totalDues,
+      totalDues: totalRemainingDues,
+      totalRemainingDues,
+      totalPendingDues,
       totalOverdue,
       approved,
       pending,
