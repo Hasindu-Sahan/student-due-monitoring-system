@@ -15,6 +15,7 @@ export async function GET() {
       },
       orderBy: { paymentId: "desc" },
     });
+
     const latestPayments = Array.from(
       payments.reduce((latest, payment) => {
         if (!latest.has(payment.studentFeeId)) latest.set(payment.studentFeeId, payment);
@@ -27,7 +28,11 @@ export async function GET() {
       date: p.paymentDate.toISOString().split("T")[0],
       sid: p.studentFee.student.studentId,
       name: `${p.studentFee.student.firstName} ${p.studentFee.student.lastName}`,
-      type: p.studentFee.fee.feeType.feeName,
+      // Used by Admin Payments filtering UI
+      feeType: p.studentFee.fee.feeType.feeName,
+      category: p.studentFee.fee.feeType.category ?? "",
+      faculty: p.studentFee.student.faculty ?? "",
+      level: p.studentFee.student.level ?? null,
       amount: Number(p.amountPaid),
       status: p.status ?? "Pending",
       bankSlipUrl: p.bankSlipUrl ?? null,
@@ -61,9 +66,25 @@ export async function PATCH(req: NextRequest) {
         : null;
       const fallbackStatus = dueDate?.dueDate && dueDate.dueDate < new Date() ? "Overdue" : "Pending";
 
+      const nextStudentFeeStatus = status === "Approved" ? "Paid" : fallbackStatus;
+
+      // Update student fee status based on payment verification result.
       await prisma.studentFee.update({
         where: { studentFeeId: previous.studentFeeId },
-        data: { status: status === "Approved" ? "Paid" : fallbackStatus },
+        data: { status: nextStudentFeeStatus },
+      });
+
+      // Create a student notification on admin approve/reject.
+      await prisma.notification.create({
+        data: {
+          studentId: previous.studentFee.studentId,
+          notificationType: "PaymentStatus",
+          status: "Unread",
+          message:
+            status === "Approved"
+              ? `Your payment has been approved for the assigned fee. You can now view it in your payments.`
+              : `Your payment has been rejected. Please check and submit again if required.`,
+        },
       });
     }
 
@@ -82,3 +103,4 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Failed to update payment" }, { status: 500 });
   }
 }
+

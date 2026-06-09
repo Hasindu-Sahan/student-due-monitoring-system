@@ -49,12 +49,27 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
+    const student = await findStudent(req);
+    if (!student) return NextResponse.json({ error: "Student not found" }, { status: 404 });
+
     const { notificationId, all } = await req.json();
     if (all) {
-      await prisma.notification.updateMany({ where: { status: "Unread" }, data: { status: "Read" } });
+      await prisma.notification.updateMany({
+        where: { studentId: student.studentId, status: "Unread" },
+        data: { status: "Read" },
+      });
       return NextResponse.json({ success: true });
     }
-    await prisma.notification.update({ where: { notificationId }, data: { status: "Read" } });
+
+    const result = await prisma.notification.updateMany({
+      where: { notificationId, studentId: student.studentId },
+      data: { status: "Read" },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Notification not found" }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);

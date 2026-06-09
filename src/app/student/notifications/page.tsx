@@ -35,13 +35,52 @@ export default function StudentNotifications() {
   useEffect(() => { load(); }, []);
 
   const markAllRead = async () => {
-    await fetch(`/api/student/notifications`, {
+    const res = await fetch(`/api/student/notifications${sessionQuery()}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ all: true }),
     });
+
+    if (!res.ok) return;
     load();
   };
+
+  const markRead = async (notificationId: number) => {
+    const res = await fetch(`/api/student/notifications${sessionQuery()}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationId }),
+    });
+
+    if (!res.ok) return;
+    // Re-fetch to ensure UI is consistent with server state.
+    load();
+  };
+
+  const notificationContent = loading ? (
+    <div className="px-6 py-8 text-center text-muted-foreground">Loading...</div>
+  ) : notifications.length === 0 ? (
+    <div className="px-6 py-8 text-center text-muted-foreground">No notifications yet</div>
+  ) : (
+    notifications.map((notification) => (
+      <button
+        key={notification.id}
+        type="button"
+        onClick={() => markRead(notification.id)}
+        className="flex w-full items-start justify-between gap-4 rounded-xl px-6 py-4 text-left transition hover:bg-accent/50"
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            {notification.status === "Unread" && <span className="h-2 w-2 rounded-full bg-destructive" />}
+            <p className="text-sm font-semibold">{notification.type}</p>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{new Date(notification.sentDate).toLocaleString()}</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${notification.status === "Unread" ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>{notification.status}</span>
+      </button>
+    ))
+  );
 
   return (
     <PortalLayout role="student" user={{ name: `${student.firstName} ${student.lastName}`.trim(), sub: student.id, initials: `${student.firstName?.[0] ?? "S"}${student.lastName?.[0] ?? ""}` }} title="Notifications" subtitle="All alerts and updates">
@@ -59,23 +98,7 @@ export default function StudentNotifications() {
           </button>
         </div>
         <div className="divide-y">
-          {loading ? (
-            <div className="px-6 py-8 text-center text-muted-foreground">Loading...</div>
-          ) : notifications.length === 0 ? (
-            <div className="px-6 py-8 text-center text-muted-foreground">No notifications yet</div>
-          ) : notifications.map((notification) => (
-            <div key={notification.id} className="flex items-start justify-between gap-4 px-6 py-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  {notification.status === "Unread" && <span className="h-2 w-2 rounded-full bg-destructive" />}
-                  <p className="text-sm font-semibold">{notification.type}</p>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{new Date(notification.sentDate).toLocaleString()}</p>
-              </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${notification.status === "Unread" ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>{notification.status}</span>
-            </div>
-          ))}
+          {notificationContent}
         </div>
       </div>
     </PortalLayout>

@@ -7,21 +7,44 @@ import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
 import { CircleDollarSign, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye } from "lucide-react";
 
-type Payment = { paymentId: number; date: string; sid: string; name: string; type: string; amount: number; status: string; bankSlipUrl: string | null };
+type Payment = { paymentId: number; date: string; sid: string; name: string; feeType: string; category: string; faculty: string; level: number | null; amount: number; status: string; bankSlipUrl: string | null };
 type Stats = { totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
+
+type PaymentFilterOptions = {
+  feeTypes: string[];
+  categories: string[];
+  faculties: string[];
+  levels: number[];
+};
+
 const paymentsPerPage = 5;
+
 
 export default function AdminPayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<Stats>({ totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
-  const [filter, setFilter] = useState("All statuses");
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+    feeType: "",
+    category: "",
+    faculty: "",
+    level: "",
+    paymentStatus: "",
+    studentSearch: "",
+  });
+
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewSlip, setViewSlip] = useState<Payment | null>(null);
   const [page, setPage] = useState(1);
+
+  const [filterOptions, setFilterOptions] = useState<PaymentFilterOptions>({
+    feeTypes: [],
+    categories: [],
+    faculties: [],
+    levels: [],
+  });
 
   useEffect(() => {
     const stored = localStorage.getItem("portalUser");
@@ -33,13 +56,15 @@ export default function AdminPayments() {
     const accountQuery = params.toString() ? `?${params.toString()}` : "";
 
     Promise.all([
-      fetch("/api/admin/payments").then(r => r.json()),
-      fetch("/api/admin/stats").then(r => r.json()),
-      fetch(`/api/admin/account${accountQuery}`).then(r => r.json()),
-    ]).then(([p, s, a]) => {
+      fetch("/api/admin/payments").then((r) => r.json()),
+      fetch("/api/admin/stats").then((r) => r.json()),
+      fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
+      fetch("/api/admin/payments-options").then((r) => r.json()),
+    ]).then(([p, s, a, opts]) => {
       setPayments(p);
       setStats(s);
       if (!a.error) setAdmin(a);
+      if (opts && !opts.error) setFilterOptions(opts);
       setLoading(false);
     });
   }, []);
@@ -56,10 +81,24 @@ export default function AdminPayments() {
   };
 
   const filtered = payments.filter((payment) => {
-    const matchesStatus = filter === "All statuses" || payment.status === filter;
-    const text = search.toLowerCase();
-    const matchesSearch = !text || payment.sid.toLowerCase().includes(text) || payment.name.toLowerCase().includes(text);
-    return matchesStatus && matchesSearch;
+    const matchesFeeType = !filters.feeType || payment.feeType === filters.feeType;
+    const matchesCategory = !filters.category || payment.category === filters.category;
+    const matchesFaculty = !filters.faculty || payment.faculty === filters.faculty;
+    const matchesLevel = !filters.level || String(payment.level ?? "") === filters.level;
+    const matchesPaymentStatus = !filters.paymentStatus || payment.status === filters.paymentStatus;
+
+    const text = filters.studentSearch.toLowerCase();
+    const matchesStudent =
+      !text || payment.sid.toLowerCase().includes(text) || payment.name.toLowerCase().includes(text);
+
+    return (
+      matchesFeeType &&
+      matchesCategory &&
+      matchesFaculty &&
+      matchesLevel &&
+      matchesPaymentStatus &&
+      matchesStudent
+    );
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / paymentsPerPage));
   const currentPage = Math.min(page, totalPages);
@@ -67,7 +106,8 @@ export default function AdminPayments() {
 
   useEffect(() => {
     setPage(1);
-  }, [filter, search]);
+  }, [filters]);
+
 
   return (
     <PortalLayout role="admin" user={{ name: `${admin.firstName} ${admin.lastName}`.trim(), sub: admin.designation, initials: `${admin.firstName?.[0] ?? "A"}${admin.lastName?.[0] ?? ""}` }} title="Payments" subtitle="Review and approve submitted bank slips">
@@ -86,10 +126,67 @@ export default function AdminPayments() {
             <h2 className="text-base font-semibold">Recent Payments</h2>
             <p className="text-xs text-muted-foreground">All submissions</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search student ID or name" className="h-9 w-60 rounded-lg border bg-card px-3 text-xs font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/10" />
-            <select value={filter} onChange={e => setFilter(e.target.value)} className="h-9 rounded-lg border bg-card px-3 text-xs font-medium">
-              <option>All statuses</option><option>Approved</option><option>Pending</option><option>Rejected</option>
+          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-7">
+            <input
+              value={filters.studentSearch}
+              onChange={(e) => setFilters({ ...filters, studentSearch: e.target.value })}
+              placeholder="Student ID / Name"
+              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 lg:col-span-2"
+            />
+
+            <select
+              value={filters.feeType}
+              onChange={(e) => setFilters({ ...filters, feeType: e.target.value })}
+              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+            >
+              <option value="">All fee types</option>
+              {filterOptions.feeTypes.map((ft) => (
+                <option key={ft} value={ft}>{ft}</option>
+              ))}
+            </select>
+
+            <select
+              value={filters.category}
+              onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+            >
+              <option value="">All categories</option>
+              {filterOptions.categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+
+            <select
+              value={filters.faculty}
+              onChange={(e) => setFilters({ ...filters, faculty: e.target.value })}
+              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+            >
+              <option value="">All faculties</option>
+              {filterOptions.faculties.map((fac) => (
+                <option key={fac} value={fac}>{fac}</option>
+              ))}
+            </select>
+
+            <select
+              value={filters.level}
+              onChange={(e) => setFilters({ ...filters, level: e.target.value })}
+              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+            >
+              <option value="">All levels</option>
+              {[...filterOptions.levels].sort((a, b) => a - b).map((lvl) => (
+                <option key={String(lvl)} value={String(lvl)}>{`Level ${lvl}`}</option>
+              ))}
+            </select>
+
+            <select
+              value={filters.paymentStatus}
+              onChange={(e) => setFilters({ ...filters, paymentStatus: e.target.value })}
+              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+            >
+              <option value="">All payment statuses</option>
+              <option value="Approved">Approved</option>
+              <option value="Pending">Pending</option>
+              <option value="Rejected">Rejected</option>
             </select>
           </div>
         </div>
@@ -114,7 +211,8 @@ export default function AdminPayments() {
                   <td className="px-6 py-4 text-muted-foreground">{p.date}</td>
                   <td className="px-6 py-4 font-mono text-xs">{p.sid}</td>
                   <td className="px-6 py-4 font-medium">{p.name}</td>
-                  <td className="px-6 py-4 text-muted-foreground">{p.type}</td>
+                  <td className="px-6 py-4 text-muted-foreground">{p.feeType}</td>
+
                   <td className="px-6 py-4 font-semibold tabular-nums">{lkr(p.amount)}</td>
                   <td className="px-6 py-4">
                     {p.bankSlipUrl ? (
@@ -160,7 +258,7 @@ export default function AdminPayments() {
             <h3 className="text-lg font-semibold mb-4">Bank Slip - {viewSlip.name}</h3>
             <div className="space-y-3 text-sm mb-6">
               <div><span className="text-muted-foreground">Student ID:</span> <span className="font-medium">{viewSlip.sid}</span></div>
-              <div><span className="text-muted-foreground">Fee Type:</span> <span className="font-medium">{viewSlip.type}</span></div>
+              <div><span className="text-muted-foreground">Fee Type:</span> <span className="font-medium">{viewSlip.feeType}</span></div>
               <div><span className="text-muted-foreground">Amount:</span> <span className="font-medium">{lkr(viewSlip.amount)}</span></div>
               <div><span className="text-muted-foreground">Payment Date:</span> <span className="font-medium">{viewSlip.date}</span></div>
             </div>
