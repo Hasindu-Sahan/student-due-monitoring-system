@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const [feeTypes, feeCategories, faculties, levels] = await Promise.all([
       prisma.feeType.findMany({
-        select: { feeName: true, category: true },
+        select: { feeName: true, category: true, description: true },
       }),
       prisma.feeType.findMany({
         select: { category: true },
@@ -43,6 +43,11 @@ export async function GET() {
     return NextResponse.json({
       feeTypes: allFeeTypes,
       categories: allCategories,
+      feeSuggestions: feeTypes.map((feeType) => ({
+        feeName: feeType.feeName,
+        category: feeType.category ?? "",
+        description: feeType.description ?? "",
+      })),
       faculties: allFaculties,
       levels: allLevels,
     });

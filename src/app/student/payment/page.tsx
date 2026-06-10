@@ -18,6 +18,8 @@ type UploadState = {
   fileName: string;
 } | null;
 
+const allowedSlipTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const maxSlipSize = 10 * 1024 * 1024;
 const emptyData: Data = { fees: [], totalPaid: 0, totalDues: 0, totalPendingDues: 0, totalOverdue: 0 };
 const defaultStudent: StudentProfile = { firstName: "Student", lastName: "", id: "" };
 
@@ -35,6 +37,7 @@ export default function StudentPayment() {
   const [loading, setLoading] = useState(true);
   const [uploadState, setUploadState] = useState<UploadState>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
@@ -66,6 +69,7 @@ export default function StudentPayment() {
   }, []);
 
   const handleOpenUpload = (fee: Fee) => {
+    setUploadError("");
     setUploadState({
       studentFeeId: fee.studentFeeId,
       fee,
@@ -77,6 +81,19 @@ export default function StudentPayment() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && uploadState) {
+      if (!allowedSlipTypes.has(file.type)) {
+        setUploadError("Only PDF, JPG, and PNG slips are allowed.");
+        e.target.value = "";
+        return;
+      }
+
+      if (file.size > maxSlipSize) {
+        setUploadError("Slip file must be 10MB or smaller.");
+        e.target.value = "";
+        return;
+      }
+
+      setUploadError("");
       setUploadState({
         ...uploadState,
         file,
@@ -86,7 +103,10 @@ export default function StudentPayment() {
   };
 
   const handleSubmitUpload = async () => {
-    if (!uploadState || !uploadState.file) return;
+    if (!uploadState || !uploadState.file) {
+      setUploadError("Please choose a PDF, JPG, or PNG slip.");
+      return;
+    }
     
     setSubmitting(true);
     try {
@@ -103,6 +123,9 @@ export default function StudentPayment() {
       if (response.ok) {
         setUploadState(null);
         load(); // refresh
+      } else {
+        const data = await response.json();
+        setUploadError(data.error ?? "Failed to submit payment slip.");
       }
     } catch (error) {
       console.error("Upload failed:", error);
@@ -113,6 +136,7 @@ export default function StudentPayment() {
 
   const handleCloseUpload = () => {
     setUploadState(null);
+    setUploadError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -227,7 +251,7 @@ export default function StudentPayment() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -257,6 +281,12 @@ export default function StudentPayment() {
                   </div>
                 )}
               </div>
+
+              {uploadError && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive-soft px-3 py-2 text-sm text-destructive">
+                  {uploadError}
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button

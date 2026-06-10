@@ -4,6 +4,8 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
 const uploadDir = path.join(process.cwd(), "public", "uploads", "payment-slips");
+const allowedSlipTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const maxSlipSize = 10 * 1024 * 1024;
 
 function safeFileName(fileName: string) {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -23,7 +25,19 @@ export async function POST(req: NextRequest) {
       studentFeeId = Number(formData.get("studentFeeId"));
       amountPaid = Number(formData.get("amountPaid"));
 
+      if (!file || file.size === 0) {
+        return NextResponse.json({ error: "Payment slip is required" }, { status: 400 });
+      }
+
       if (file) {
+        if (!allowedSlipTypes.has(file.type)) {
+          return NextResponse.json({ error: "Only PDF, JPG, and PNG slips are allowed" }, { status: 400 });
+        }
+
+        if (file.size > maxSlipSize) {
+          return NextResponse.json({ error: "Slip file must be 10MB or smaller" }, { status: 400 });
+        }
+
         const buffer = Buffer.from(await file.arrayBuffer());
         const fileName = `${Date.now()}-${safeFileName(file.name)}`;
 
@@ -38,6 +52,10 @@ export async function POST(req: NextRequest) {
       studentFeeId = body.studentFeeId;
       amountPaid = body.amountPaid;
       bankSlipUrl = body.bankSlipUrl ?? null;
+    }
+
+    if (!studentFeeId || Number.isNaN(studentFeeId) || !amountPaid || Number.isNaN(amountPaid) || amountPaid <= 0) {
+      return NextResponse.json({ error: "Valid fee and amount are required" }, { status: 400 });
     }
 
     const existingPayment = await prisma.payment.findFirst({

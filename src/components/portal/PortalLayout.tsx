@@ -11,6 +11,7 @@ import {
   UserCircle2,
   CreditCard,
   Receipt,
+  BadgePlus,
   FileBarChart2,
   GraduationCap,
   ClipboardList,
@@ -31,11 +32,18 @@ const studentNav: NavItem[] = [
 const adminNav: NavItem[] = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
+  { to: "/admin/add-fee", label: "Add Fee", icon: BadgePlus },
   { to: "/admin/fees", label: "Fee Management", icon: Receipt },
   { to: "/admin/reports", label: "Reports", icon: FileBarChart2 },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ClipboardList },
   { to: "/admin/notifications", label: "Notifications", icon: BellRing },
   { to: "/admin/account", label: "Account", icon: UserCircle2 },
+];
+
+const facultyNav: NavItem[] = [
+  { to: "/faculty", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/faculty/payments", label: "Payments", icon: CreditCard },
+  { to: "/faculty/account", label: "Profile", icon: UserCircle2 },
 ];
 
 export function PortalLayout({
@@ -45,13 +53,13 @@ export function PortalLayout({
   title,
   subtitle,
 }: {
-  role: "student" | "admin";
+  role: "student" | "admin" | "faculty";
   user: { name: string; sub: string; initials: string };
   title: string;
   subtitle?: string;
   children: React.ReactNode;
 }) {
-  const nav = role === "student" ? studentNav : adminNav;
+  const nav = role === "student" ? studentNav : role === "faculty" ? facultyNav : adminNav;
   const pathname = usePathname();
   const [hasUnread, setHasUnread] = useState(false);
 
@@ -88,7 +96,11 @@ export function PortalLayout({
         </div>
 
         <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-sidebar-muted">
-          {role === "admin" ? "Admin Portal" : "Student Portal"}
+          {role === "admin"
+            ? "Admin Portal"
+            : role === "faculty"
+              ? "Faculty Portal"
+              : "Student Portal"}
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
@@ -141,10 +153,12 @@ export function PortalLayout({
             {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <div className="flex items-center gap-3">
-            <Link href={role === "admin" ? "/admin/notifications" : "/student/notifications"} className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:text-foreground">
-              <Bell className="h-[18px] w-[18px]" />
-              {hasUnread && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />}
-            </Link>
+            {role !== "faculty" && (
+              <Link href={role === "admin" ? "/admin/notifications" : "/student/notifications"} className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:text-foreground">
+                <Bell className="h-[18px] w-[18px]" />
+                {hasUnread && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />}
+              </Link>
+            )}
             <button className="flex items-center gap-2 rounded-xl border bg-card pl-1 pr-3 py-1 transition hover:shadow-soft">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-sm font-semibold text-primary">
                 {user.initials}

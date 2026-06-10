@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
+      userId: admin.userId,
       id: admin.employeeId,
       username: admin.user.username,
       firstName: admin.firstName,
@@ -99,6 +100,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     return NextResponse.json({
+      userId: updated.userId,
       id: updated.employeeId,
       username: updated.user.username,
       firstName: updated.firstName,

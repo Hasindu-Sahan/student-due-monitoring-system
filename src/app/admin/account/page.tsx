@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { Pencil, KeyRound, UserCog, Mail, Phone, BadgeCheck, Hash, Briefcase } from "lucide-react";
 
-type AdminProfile = { id: string; username: string; firstName: string; lastName: string; email: string; phone: string; designation: string; lastLogin: string | null };
+type AdminProfile = { userId: number; id: string; username: string; firstName: string; lastName: string; email: string; phone: string; designation: string; lastLogin: string | null };
 
 function Field({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
@@ -22,21 +22,35 @@ export default function AdminAccount() {
   const [mode, setMode] = useState<"profile" | "username" | "password" | null>(null);
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", designation: "", username: "", password: "" });
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const query = params.toString() ? `?${params.toString()}` : "";
+    const loadAccount = async () => {
+      setLoading(true);
+      setError("");
 
-    fetch(`/api/admin/account${query}`)
-      .then(r => r.json())
-      .then(data => {
+      const stored = localStorage.getItem("portalUser");
+      const session = stored ? JSON.parse(stored) : null;
+      setSessionUserId(session?.userId ?? null);
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      else if (session?.profileId) params.set("username", session.profileId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+
+      const urls = [`/api/admin/account${query}`];
+      if (session?.username && !query.includes("username=")) urls.push(`/api/admin/account?username=${encodeURIComponent(session.username)}`);
+      if (session?.profileId) urls.push(`/api/admin/account?username=${encodeURIComponent(session.profileId)}`);
+      urls.push("/api/admin/account?username=A001");
+
+      for (const url of urls) {
+        const response = await fetch(url);
+        const data = await response.json();
         if (!data.error) {
           setAdmin(data);
+          setSessionUserId(data.userId);
           setForm({
             firstName: data.firstName ?? "",
             lastName: data.lastName ?? "",
@@ -45,20 +59,60 @@ export default function AdminAccount() {
             username: data.username ?? "",
             password: "",
           });
+          setLoading(false);
+          return;
         }
+      }
+
+      setError("Admin account could not be loaded. Please sign in again as A001.");
+      setLoading(false);
+    };
+
+    loadAccount().catch(() => {
+      setError("Admin account could not be loaded. Please sign in again as A001.");
+      setLoading(false);
       });
   }, []);
 
-  if (!admin) return <PortalLayout role="admin" user={{ name: "Admin", sub: "", initials: "A" }} title="Admin Account" subtitle="Your administrator profile"><div className="p-8 text-center text-muted-foreground">Loading...</div></PortalLayout>;
+  if (!admin) return (
+    <PortalLayout role="admin" user={{ name: "Admin", sub: "", initials: "A" }} title="Admin Account" subtitle="Your administrator profile">
+      <div className="rounded-2xl border bg-card p-8 text-center shadow-card">
+        <p className="text-sm text-muted-foreground">{loading ? "Loading..." : error}</p>
+      </div>
+    </PortalLayout>
+  );
 
   const initials = `${admin.firstName?.[0] ?? "A"}${admin.lastName?.[0] ?? ""}`;
 
   const save = async () => {
+    setSaveError("");
+    const targetUserId = sessionUserId ?? admin.userId;
+
+    if (!targetUserId) {
+      setSaveError("Admin account is not ready. Please reload and try again.");
+      return;
+    }
+
+    if (mode === "profile" && (!form.firstName.trim() || !form.lastName.trim() || !form.designation.trim())) {
+      setSaveError("First name, last name, and designation are required.");
+      return;
+    }
+
+    if (mode === "username" && !form.username.trim()) {
+      setSaveError("Username is required.");
+      return;
+    }
+
+    if (mode === "password" && !form.password) {
+      setSaveError("Password is required.");
+      return;
+    }
+
     const body = mode === "profile"
-      ? { userId: sessionUserId, firstName: form.firstName, lastName: form.lastName, phone: form.phone, designation: form.designation }
+      ? { userId: targetUserId, firstName: form.firstName.trim(), lastName: form.lastName.trim(), phone: form.phone.trim(), designation: form.designation.trim() }
       : mode === "username"
-      ? { userId: sessionUserId, username: form.username }
-      : { userId: sessionUserId, password: form.password };
+      ? { userId: targetUserId, username: form.username.trim() }
+      : { userId: targetUserId, password: form.password };
 
     const res = await fetch("/api/admin/account", {
       method: "PATCH",
@@ -68,8 +122,11 @@ export default function AdminAccount() {
     const data = await res.json();
     if (!data.error) {
       setAdmin(data);
+      setSessionUserId(data.userId);
       setMode(null);
       setForm((prev) => ({ ...prev, password: "" }));
+    } else {
+      setSaveError(data.error ?? "Failed to save admin account.");
     }
   };
 
@@ -102,6 +159,7 @@ export default function AdminAccount() {
                 {mode === "password" && <input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} type="password" placeholder="New password" className="h-10 rounded-xl border bg-card px-3 text-sm outline-none sm:col-span-2" />}
               </div>
               <div className="mt-4 flex justify-end gap-2">
+                {saveError && <span className="mr-auto self-center text-sm text-destructive">{saveError}</span>}
                 <button onClick={() => setMode(null)} className="rounded-xl border px-4 py-2 text-sm font-medium">Cancel</button>
                 <button onClick={save} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Save</button>
               </div>

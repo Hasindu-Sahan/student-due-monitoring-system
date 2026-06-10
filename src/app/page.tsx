@@ -118,7 +118,15 @@ export default function LoginPage() {
                   // Always store in localStorage for current session
                   localStorage.setItem("portalUser", JSON.stringify(data));
 
-                  router.push(data.role === "student" ? "/student" : "/admin");
+                  // Route the user to the correct portal based on the
+                  // portal role returned by the server (student / admin / faculty).
+                  const nextRoute =
+                    data.role === "student"
+                      ? "/student"
+                      : data.role === "faculty"
+                        ? "/faculty"
+                        : "/admin";
+                  router.push(nextRoute);
                 } catch (err) {
                   setError("Network error. Please check your connection and try again.");
                 } finally {

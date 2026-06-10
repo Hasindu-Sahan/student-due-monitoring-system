@@ -62,11 +62,20 @@ export async function POST(req: NextRequest) {
       data: { lastLogin: new Date() },
     });
 
+    // Determine the actual portal this user should land in.
+    // - "Student" db role -> student portal
+    // - "Staff" db role (e.g. faculty) -> faculty portal (restricted sub-admin)
+    // - "Admin" db role -> admin portal
+    const portalRole: "student" | "admin" | "faculty" =
+      user.role === "Student" ? "student" : user.role === "Staff" ? "faculty" : "admin";
+
     return NextResponse.json({
       userId: user.userId,
       username: user.username,
       email: user.email,
-      role: loginRole,
+      role: portalRole,
+      dbRole: user.role,
+      designation: user.admin?.designation ?? null,
       profileId: loginRole === "student" ? user.student?.studentId : user.admin?.employeeId,
       name: loginRole === "student"
         ? `${user.student?.firstName ?? ""} ${user.student?.lastName ?? ""}`.trim()

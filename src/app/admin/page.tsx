@@ -5,12 +5,26 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { lkr } from "@/lib/data";
 import { AlertOctagon, CheckCircle2, CircleDollarSign, Clock, XCircle } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-type Stats = { totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
+type Stats = { totalPaid: number; totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 
+const statusColors = {
+  Approved: "#16a34a",
+  Pending: "#f59e0b",
+  Rejected: "#dc2626",
+};
+
+const dueColors = {
+  Paid: "#2563eb",
+  Remaining: "#7c3aed",
+  Pending: "#f59e0b",
+  Overdue: "#dc2626",
+};
+
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({ totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState<Stats>({ totalPaid: 0, totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
 
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [loading, setLoading] = useState(true);
@@ -43,7 +57,19 @@ export default function AdminDashboard() {
     load();
   }, []);
 
+  const statusData = [
+    { name: "Approved", value: stats.approved, color: statusColors.Approved },
+    { name: "Pending", value: stats.pending, color: statusColors.Pending },
+    { name: "Rejected", value: stats.rejected, color: statusColors.Rejected },
+  ].filter((item) => item.value > 0);
 
+  const statusTotal = stats.approved + stats.pending + stats.rejected;
+  const dueData = [
+    { name: "Paid", amount: stats.totalPaid, color: dueColors.Paid },
+    { name: "Remaining", amount: stats.totalRemainingDues, color: dueColors.Remaining },
+    { name: "Pending", amount: stats.totalPendingDues, color: dueColors.Pending },
+    { name: "Overdue", amount: stats.totalOverdue, color: dueColors.Overdue },
+  ];
 
   return (
     <PortalLayout role="admin" user={{ name: `${admin.firstName} ${admin.lastName}`.trim(), sub: admin.designation, initials: `${admin.firstName?.[0] ?? "A"}${admin.lastName?.[0] ?? ""}` }} title="Admin Dashboard" subtitle="Bursar's overview">
@@ -61,29 +87,55 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold">Payment Status</h2>
-              <p className="text-xs text-muted-foreground">Approved vs Pending vs Rejected</p>
+              <p className="text-xs text-muted-foreground">{statusTotal} latest payment decisions</p>
             </div>
           </div>
-          <div className="mt-5 space-y-3">
-            {([
-              { label: "Approved", value: stats.approved, tone: "bg-success" },
-              { label: "Pending", value: stats.pending, tone: "bg-warning" },
-              { label: "Rejected", value: stats.rejected, tone: "bg-destructive" },
-            ] as const).map((row) => {
-              const max = Math.max(stats.approved, stats.pending, stats.rejected, 1);
-              const width = Math.round((row.value / max) * 100);
-              return (
-                <div key={row.label}>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{row.label}</span>
-                    <span className="font-medium tabular-nums">{row.value}</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div className={`h-2 rounded-full ${row.tone}`} style={{ width: `${width}%` }} />
-                  </div>
+          <div className="mt-5 grid min-h-[260px] gap-5 sm:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="relative h-[220px]">
+              {statusData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={96} paddingAngle={3}>
+                      {statusData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number, name: string) => [value, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl bg-muted/40 text-sm text-muted-foreground">No payments yet</div>
+              )}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-2xl font-semibold tabular-nums">{statusTotal}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
                 </div>
-              );
-            })}
+              </div>
+            </div>
+            <div className="space-y-3 self-center">
+              {[
+                { label: "Approved", value: stats.approved, color: statusColors.Approved },
+                { label: "Pending", value: stats.pending, color: statusColors.Pending },
+                { label: "Rejected", value: stats.rejected, color: statusColors.Rejected },
+              ].map((row) => {
+                const percent = statusTotal > 0 ? Math.round((row.value / statusTotal) * 100) : 0;
+                return (
+                  <div key={row.label} className="rounded-xl border bg-muted/20 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
+                        {row.label}
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums">{row.value}</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: row.color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -91,28 +143,23 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold">Dues Overview</h2>
-              <p className="text-xs text-muted-foreground">Overdue vs Remaining</p>
+              <p className="text-xs text-muted-foreground">Paid, pending, remaining, and overdue amounts</p>
             </div>
           </div>
-          <div className="mt-5 space-y-3">
-            {([
-              { label: "Remaining", value: stats.totalRemainingDues, tone: "bg-primary" },
-              { label: "Overdue", value: stats.totalOverdue, tone: "bg-destructive" },
-            ] as const).map((row) => {
-              const max = Math.max(stats.totalRemainingDues, stats.totalOverdue, 1);
-              const width = Math.round((row.value / max) * 100);
-              return (
-                <div key={row.label}>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{row.label}</span>
-                    <span className="font-medium tabular-nums">{lkr(row.value)}</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div className={`h-2 rounded-full ${row.tone}`} style={{ width: `${width}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mt-5 h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dueData} margin={{ top: 10, right: 8, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} />
+                <Tooltip formatter={(value: number) => [lkr(Number(value)), "Amount"]} cursor={{ fill: "rgba(148, 163, 184, 0.12)" }} />
+                <Bar dataKey="amount" radius={[8, 8, 0, 0]} barSize={44}>
+                  {dueData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
