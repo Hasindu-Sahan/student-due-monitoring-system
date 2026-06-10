@@ -124,7 +124,14 @@ export default function AdminAccount() {
       setAdmin(data);
       setSessionUserId(data.userId);
       setMode(null);
-      setForm((prev) => ({ ...prev, password: "" }));
+      setForm({
+        firstName: data.firstName ?? "",
+        lastName: data.lastName ?? "",
+        phone: data.phone ?? "",
+        designation: data.designation ?? "",
+        username: data.username ?? "",
+        password: "",
+      });
     } else {
       setSaveError(data.error ?? "Failed to save admin account.");
     }

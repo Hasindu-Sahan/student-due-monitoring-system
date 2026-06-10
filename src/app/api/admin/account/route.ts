@@ -68,12 +68,14 @@ export async function PATCH(req: NextRequest) {
         ...(lastName !== undefined ? { lastName } : {}),
         ...(phone !== undefined ? { phone } : {}),
         ...(designation !== undefined ? { designation } : {}),
-        user: {
-          update: {
-            ...(username ? { username } : {}),
-            ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}),
+        ...((username !== undefined || password !== undefined) ? {
+          user: {
+            update: {
+              ...(username ? { username } : {}),
+              ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}),
+            },
           },
-        },
+        } : {}),
       },
       include: { user: true },
     });
