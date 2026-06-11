@@ -31,18 +31,32 @@ export async function GET(req: NextRequest) {
     // Note: Prisma types in this repo currently don't expose Student.level in generated types.
     // Student dashboard payments are already scoped to studentId via StudentFee -> Payment relation.
     // Level-based filtering is handled by which StudentFee rows exist for the student's level.
-    const studentLevel: number | null = null;
+    const now = new Date();
+
+    // Auto-mark overdue items when their due date passes.
+    // This keeps the student dashboard "Total Overdue Amount" in sync without waiting for manual status updates.
+    await prisma.studentFee.updateMany({
+      where: {
+        studentId: student.studentId,
+        status: { not: "Overdue" },
+        fee: {
+          dueDate: { lt: now },
+        },
+      },
+      data: { status: "Overdue" },
+    });
 
     const studentFees = await prisma.studentFee.findMany({
       where: {
         studentId: student.studentId,
       },
       include: {
-          fee: { include: { feeType: true } },
-          payments: { orderBy: { paymentId: "desc" } },
-        },
+        fee: { include: { feeType: true } },
+        payments: { orderBy: { paymentId: "desc" } },
+      },
       orderBy: { assignedDate: "desc" },
     });
+
 
     const formatted = studentFees.map((sf) => {
       const latestPayment = sf.payments[0];
