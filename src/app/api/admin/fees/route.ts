@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
 
+const BELONGS_TO_OPTIONS = ["Welfare", "FAS_Faculty", "FBSF_Faculty", "FOT_Faculty", "SPECIFIC_STUDENT"];
+
+
 function todayDateOnly() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -22,6 +25,8 @@ function formatFee(fee: any) {
     type: fee.feeType.feeName,
     feeTypeId: fee.feeTypeId,
     category: fee.feeType.category ?? "",
+    description: fee.feeType.description ?? "",
+    belongsTo: fee.belongsTo ?? "",
     amount: Number(fee.amount),
     due: fee.dueDate?.toISOString().split("T")[0] ?? "",
     assignedCount: fee._count?.studentFees ?? fee.studentFees?.length ?? 0,
@@ -37,7 +42,9 @@ function buildStudentWhere(filters: {
   const where: Record<string, unknown> = {};
   if (filters.studentId) where.studentId = filters.studentId;
   if (filters.faculty && !["none", "all"].includes(filters.faculty)) where.faculty = filters.faculty;
+  // Support "all" meaning: do not filter by level.
   if (filters.level && !["none", "all"].includes(filters.level)) where.level = Number(filters.level);
+
   if (filters.studentSearch) {
     where.OR = [
       { studentId: { contains: filters.studentSearch, mode: "insensitive" } },
@@ -67,11 +74,23 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { feeName, category, description, amount, dueDate, receiverFilters, userId } = await req.json();
+    const { feeName, category, description, belongsTo, amount, dueDate, receiverFilters, userId } = await req.json();
 
-    if (!feeName || !category || !dueDate || amount == null || Number.isNaN(Number(amount))) {
-      return NextResponse.json({ error: "Fee type, category, due date, and amount are required" }, { status: 400 });
+    if (!feeName || !category || !belongsTo || !dueDate || amount == null || Number.isNaN(Number(amount))) {
+      return NextResponse.json({ error: "Fee type, category, belongs to, due date, and amount are required" }, { status: 400 });
     }
+
+    if (belongsTo === "SPECIFIC_STUDENT") {
+      if (!receiverFilters?.studentId || typeof receiverFilters.studentId !== "string" || !receiverFilters.studentId.trim()) {
+        return NextResponse.json({ error: "receiverFilters.studentId is required for specific student" }, { status: 400 });
+      }
+    } else {
+      if (!BELONGS_TO_OPTIONS.includes(belongsTo)) {
+        return NextResponse.json({ error: "Belongs To value is invalid" }, { status: 400 });
+      }
+    }
+
+
 
     if (Number(amount) <= 0) {
       return NextResponse.json({ error: "Amount must be a valid positive number" }, { status: 400 });
@@ -92,6 +111,14 @@ export async function POST(req: NextRequest) {
     if (!hasReceiverFilter) {
       return NextResponse.json({ error: "Choose at least one receiver" }, { status: 400 });
     }
+
+    if (belongsTo === "SPECIFIC_STUDENT") {
+      // Force only selected student.
+      if (!filters.studentId || typeof filters.studentId !== "string") {
+        return NextResponse.json({ error: "studentId is required for specific student" }, { status: 400 });
+      }
+    }
+
 
     const students = await prisma.student.findMany({
       where: buildStudentWhere(filters),
@@ -117,6 +144,7 @@ export async function POST(req: NextRequest) {
         feeTypeId: feeType.feeTypeId,
         amount: Number(amount),
         dueDate: parsedDueDate,
+        belongsTo,
       },
       include: { feeType: true },
     });
@@ -134,13 +162,17 @@ export async function POST(req: NextRequest) {
 
     const assignedCount = students.length;
 
-    await writeAuditLog({
-      userId,
-      action: "Created fee",
-      tableName: "fees",
-      recordId: fee.feeId,
-      currentState: { ...formatFee(fee), assignedCount, receiverFilters: filters },
-    });
+    try {
+      await writeAuditLog({
+        userId,
+        action: "Created fee",
+        tableName: "fees",
+        recordId: fee.feeId,
+        currentState: { ...formatFee(fee), assignedCount, receiverFilters: filters },
+      });
+    } catch (auditError) {
+      console.error("Failed to write fee creation audit log", auditError);
+    }
 
     return NextResponse.json({ ...formatFee(fee), assignedCount }, { status: 201 });
   } catch (error) {
@@ -151,10 +183,14 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { feeId, amount, dueDate, category, description, receiverFilters, userId } = await req.json();
+    const { feeId, feeName, amount, dueDate, category, description, belongsTo, receiverFilters, userId } = await req.json();
 
-    if (!feeId || !category || !dueDate || amount == null || Number.isNaN(Number(amount))) {
-      return NextResponse.json({ error: "Category, due date, and amount are required" }, { status: 400 });
+    if (!feeId || !feeName || !category || !belongsTo || !dueDate || amount == null || Number.isNaN(Number(amount))) {
+      return NextResponse.json({ error: "Fee type, category, belongs to, due date, and amount are required" }, { status: 400 });
+    }
+
+    if (!BELONGS_TO_OPTIONS.includes(belongsTo)) {
+      return NextResponse.json({ error: "Belongs To value is invalid" }, { status: 400 });
     }
 
     if (Number(amount) <= 0) {
@@ -179,34 +215,60 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Fee not found" }, { status: 404 });
     }
 
+    const filters = receiverFilters ?? {};
+    const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.studentId || filters.studentSearch);
+    const belongsToChanged = previous.belongsTo !== belongsTo;
+
+    if (belongsToChanged && !hasReceiverFilter) {
+      return NextResponse.json({ error: "Choose receivers when changing Belongs To" }, { status: 400 });
+    }
+
+    if (belongsTo === "SPECIFIC_STUDENT" && (belongsToChanged || hasReceiverFilter)) {
+      if (!filters.studentId || typeof filters.studentId !== "string" || !filters.studentId.trim()) {
+        return NextResponse.json({ error: "studentId is required for specific student" }, { status: 400 });
+      }
+    }
+
+    let assignedCount = previous.studentFees.length;
+    let studentsToAssign: { studentId: string }[] | null = null;
+
+    if (hasReceiverFilter) {
+      studentsToAssign = await prisma.student.findMany({
+        where: buildStudentWhere(filters),
+        select: { studentId: true },
+      });
+      assignedCount = studentsToAssign.length;
+
+      if (studentsToAssign.length === 0) {
+        return NextResponse.json({ error: "No matching receivers found" }, { status: 400 });
+      }
+    }
+
+    let feeType = await prisma.feeType.findFirst({ where: { feeName } });
+    if (!feeType) {
+      feeType = await prisma.feeType.create({ data: { feeName, category, description: description || null } });
+    } else {
+      feeType = await prisma.feeType.update({
+        where: { feeTypeId: feeType.feeTypeId },
+        data: { category, description: description || null },
+      });
+    }
+
     const fee = await prisma.fee.update({
       where: { feeId },
       data: {
+        feeTypeId: feeType.feeTypeId,
         amount: Number(amount),
         dueDate: parsedDueDate,
-        feeType: { update: { category, ...(description !== undefined ? { description } : {}) } },
+        belongsTo,
       },
       include: { feeType: true },
     });
 
-    const filters = receiverFilters ?? {};
-    const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.studentId || filters.studentSearch);
-    let assignedCount = previous.studentFees.length;
-
-    if (hasReceiverFilter) {
-      const students = await prisma.student.findMany({
-        where: buildStudentWhere(filters),
-        select: { studentId: true },
-      });
-      assignedCount = students.length;
-
-      if (students.length === 0) {
-        return NextResponse.json({ error: "No matching receivers found" }, { status: 400 });
-      }
-
+    if (studentsToAssign) {
       await prisma.studentFee.deleteMany({ where: { feeId } });
       await prisma.studentFee.createMany({
-        data: students.map((student) => ({
+        data: studentsToAssign.map((student) => ({
           studentId: student.studentId,
           feeId,
           status: "Pending",

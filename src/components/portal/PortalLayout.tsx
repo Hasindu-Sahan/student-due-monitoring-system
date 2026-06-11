@@ -62,6 +62,9 @@ export function PortalLayout({
   const nav = role === "student" ? studentNav : role === "faculty" ? facultyNav : adminNav;
   const pathname = usePathname();
   const [hasUnread, setHasUnread] = useState(false);
+  const isWelfarePortal =
+    role === "faculty" &&
+    [user.name, user.sub, user.initials].some((value) => value.toLowerCase().includes("welfare"));
 
   useEffect(() => {
     const loadUnread = () => {
@@ -99,7 +102,9 @@ export function PortalLayout({
           {role === "admin"
             ? "Admin Portal"
             : role === "faculty"
-              ? "Faculty Portal"
+              ? isWelfarePortal
+                ? "Welfare Portal"
+                : "Faculty Portal"
               : "Student Portal"}
         </div>
 

@@ -46,6 +46,7 @@ function Field({
 
 export default function FacultyProfile() {
   const [faculty, setFaculty] = useState<FacultyProfile | null>(null);
+  const [portalName, setPortalName] = useState("Faculty");
   const [mode, setMode] = useState<"profile" | "username" | "password" | null>(null);
   const [form, setForm] = useState({
     firstName: "",
@@ -61,6 +62,8 @@ export default function FacultyProfile() {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     setSessionUserId(session?.userId ?? null);
+    const sessionText = String(`${session?.username ?? ""} ${session?.profileId ?? ""} ${session?.designation ?? ""}`);
+    if (sessionText.toLowerCase().includes("wel")) setPortalName("Welfare");
 
     const params = new URLSearchParams();
     if (session?.userId) params.set("userId", String(session.userId));
@@ -72,6 +75,7 @@ export default function FacultyProfile() {
       .then((data) => {
         if (!data.error) {
           setFaculty(data);
+          setPortalName(data.designation?.toLowerCase().includes("welfare") ? "Welfare" : "Faculty");
           setForm({
             firstName: data.firstName ?? "",
             lastName: data.lastName ?? "",
@@ -88,9 +92,9 @@ export default function FacultyProfile() {
     return (
       <PortalLayout
         role="faculty"
-        user={{ name: "Faculty", sub: "", initials: "F" }}
-        title="Faculty Profile"
-        subtitle="Your faculty profile"
+        user={{ name: portalName, sub: portalName, initials: portalName[0] }}
+        title={`${portalName} Profile`}
+        subtitle={`Your ${portalName.toLowerCase()} profile`}
       >
         <div className="p-8 text-center text-muted-foreground">Loading...</div>
       </PortalLayout>
@@ -134,8 +138,8 @@ export default function FacultyProfile() {
         sub: faculty.designation,
         initials,
       }}
-      title="Faculty Profile"
-      subtitle="Your faculty profile"
+      title={`${portalName} Profile`}
+      subtitle={`Your ${portalName.toLowerCase()} profile`}
     >
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border bg-card p-6 shadow-card lg:col-span-2">
@@ -231,7 +235,7 @@ export default function FacultyProfile() {
             <Field icon={UserCog} label="Last Name" value={faculty.lastName} />
             <Field icon={Mail} label="Email" value={faculty.email} />
             <Field icon={Phone} label="Phone" value={faculty.phone || "N/A"} />
-            <Field icon={BadgeCheck} label="Access Level" value="Faculty (Sub-Admin)" />
+            <Field icon={BadgeCheck} label="Access Level" value={`${portalName} (Sub-Admin)`} />
             <Field
               icon={BadgeCheck}
               label="Last Sign-in"

@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const belongsTo = req.nextUrl.searchParams.get("belongsTo")?.trim();
     const [feeTypes, feeCategories, faculties, levels] = await Promise.all([
       prisma.feeType.findMany({
         select: { feeName: true, category: true, description: true },
+        where: belongsTo ? { fees: { some: { belongsTo } } } : undefined,
       }),
       prisma.feeType.findMany({
         select: { category: true },
+        where: belongsTo ? { fees: { some: { belongsTo } } } : undefined,
       }),
       prisma.student.findMany({
         select: { faculty: true },

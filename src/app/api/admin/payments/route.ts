@@ -2,9 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const belongsTo = req.nextUrl.searchParams.get("belongsTo")?.trim();
+
     const payments = await prisma.payment.findMany({
+      where: belongsTo
+        ? {
+            studentFee: {
+              fee: {
+                // fee.belongsTo is the scope discriminator (e.g. FAS_Faculty)
+                belongsTo,
+              },
+            },
+          }
+        : undefined,
       include: {
         studentFee: {
           include: {
@@ -15,6 +27,7 @@ export async function GET() {
       },
       orderBy: { paymentId: "desc" },
     });
+
 
     const latestPayments = Array.from(
       payments.reduce((latest, payment) => {
@@ -31,6 +44,7 @@ export async function GET() {
       // Used by Admin Payments filtering UI
       feeType: p.studentFee.fee.feeType.feeName,
       category: p.studentFee.fee.feeType.category ?? "",
+      belongsTo: p.studentFee.fee.belongsTo ?? "",
       faculty: p.studentFee.student.faculty ?? "",
       level: p.studentFee.student.level ?? null,
       amount: Number(p.amountPaid),

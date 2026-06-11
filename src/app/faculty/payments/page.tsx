@@ -37,9 +37,19 @@ type AdminProfile = { firstName: string; lastName: string; designation: string }
 
 const paymentsPerPage = 5;
 
+function belongsToScope(session: any) {
+  const value = String(`${session?.username ?? ""} ${session?.profileId ?? ""} ${session?.designation ?? ""}`).toUpperCase();
+  if (value.includes("WEL001") || value.includes("WELFARE")) return "Welfare";
+  if (value.includes("FAC001") || value.includes("FAS_OFFICE")) return "FAS_Office";
+  if (value.includes("FBSF") || value.includes("FBSF_OFFICE")) return "FBSF_Office";
+  if (value.includes("FOT") || value.includes("FOT_OFFICE")) return "FOT_Office";
+  return "";
+}
+
 export default function FacultyPayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Faculty", lastName: "", designation: "" });
+  const [portalName, setPortalName] = useState("Faculty");
 
   const [filters, setFilters] = useState({
     feeType: "",
@@ -52,6 +62,7 @@ export default function FacultyPayments() {
 
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const [viewSlip, setViewSlip] = useState<Payment | null>(null);
   const [page, setPage] = useState(1);
@@ -72,15 +83,26 @@ export default function FacultyPayments() {
     if (session?.userId) params.set("userId", String(session.userId));
     if (session?.username) params.set("username", session.username);
     const accountQuery = params.toString() ? `?${params.toString()}` : "";
+    const scope = belongsToScope(session);
+    if (scope) setPortalName(scope);
+    const scopeQuery = scope ? `?belongsTo=${encodeURIComponent(scope)}` : "";
 
     Promise.all([
-      fetch("/api/admin/payments").then((r) => r.json()),
+      fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
       fetch("/api/admin/account" + accountQuery).then((r) => r.json()),
-      fetch("/api/admin/payments-options").then((r) => r.json()),
+      fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
     ]).then(([p, a, opts]) => {
-      setPayments(p);
-      if (!a.error) setAdmin(a);
+      setPayments(Array.isArray(p) ? p : []);
+      setLoadError(Array.isArray(p) ? "" : p?.error ?? "Failed to fetch payments");
+      if (!a.error) {
+        setAdmin(a);
+        setPortalName(a.designation?.toLowerCase().includes("welfare") ? "Welfare" : (a.designation?.includes("Office") ? a.designation : "Faculty"));
+      }
       if (opts && !opts.error) setFilterOptions(opts);
+      setLoading(false);
+    }).catch(() => {
+      setPayments([]);
+      setLoadError("Failed to fetch payments");
       setLoading(false);
     });
   }, []);
@@ -112,6 +134,10 @@ export default function FacultyPayments() {
     (currentPage - 1) * paymentsPerPage,
     currentPage * paymentsPerPage
   );
+  const displayName = `${admin.firstName} ${admin.lastName}`.trim();
+  const userName = displayName;
+  const userSub = admin.designation || portalName;
+  const userInitials = portalName === "Welfare" ? "W" : `${admin.firstName?.[0] ?? "F"}${admin.lastName?.[0] ?? ""}`;
 
   useEffect(() => {
     setPage(1);
@@ -121,12 +147,12 @@ export default function FacultyPayments() {
     <PortalLayout
       role="faculty"
       user={{
-        name: `${admin.firstName} ${admin.lastName}`.trim(),
-        sub: admin.designation,
-        initials: `${admin.firstName?.[0] ?? "F"}${admin.lastName?.[0] ?? ""}`,
+        name: userName,
+        sub: userSub,
+        initials: userInitials,
       }}
       title="Payments"
-      subtitle="Faculty view (read-only)"
+      subtitle={`${portalName} view (read-only)`}
     >
       {/* No top cards for faculty */}
 
@@ -136,7 +162,7 @@ export default function FacultyPayments() {
             <h2 className="text-base font-semibold">Recent Payments</h2>
             <p className="text-xs text-muted-foreground">All submissions</p>
           </div>
-          <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-7">
+          <div className={`grid w-full grid-cols-1 gap-2 sm:grid-cols-2 ${portalName === "Welfare" ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
             <input
               value={filters.studentSearch}
               onChange={(e) => setFilters({ ...filters, studentSearch: e.target.value })}
@@ -170,18 +196,20 @@ export default function FacultyPayments() {
               ))}
             </select>
 
-            <select
-              value={filters.faculty}
-              onChange={(e) => setFilters({ ...filters, faculty: e.target.value })}
-              className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
-            >
-              <option value="">All faculties</option>
-              {filterOptions.faculties.map((fac) => (
-                <option key={fac} value={fac}>
-                  {fac}
-                </option>
-              ))}
-            </select>
+            {portalName === "Welfare" && (
+              <select
+                value={filters.faculty}
+                onChange={(e) => setFilters({ ...filters, faculty: e.target.value })}
+                className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+              >
+                <option value="">All faculties</option>
+                {filterOptions.faculties.map((fac) => (
+                  <option key={fac} value={fac}>
+                    {fac}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select
               value={filters.level}
@@ -219,6 +247,7 @@ export default function FacultyPayments() {
                   "Student Name",
                   "Fee Type",
                   "Amount",
+                  "Status",
                   "Slip",
                 ].map((h) => (
                   <th key={h} className="px-6 py-3 font-medium">
@@ -233,14 +262,14 @@ export default function FacultyPayments() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
                     Loading...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                    No payments found
+                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                    {loadError || "No payments found"}
                   </td>
                 </tr>
               ) : (
@@ -255,6 +284,10 @@ export default function FacultyPayments() {
                     <td className="px-6 py-4 text-muted-foreground">{p.feeType}</td>
 
                     <td className="px-6 py-4 font-semibold tabular-nums">{lkr(p.amount)}</td>
+
+                    <td className="px-6 py-4">
+                      <StatusBadge status={p.status} variant="approval" />
+                    </td>
 
                     <td className="px-6 py-4">
                       {p.bankSlipUrl ? (

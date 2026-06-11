@@ -45,6 +45,7 @@ model Fee {
   feeTypeId    Int      @map("fee_type_id")
   amount       Decimal  @db.Decimal(10, 2)
   dueDate      DateTime? @map("due_date") @db.Date
+  belongsTo    String   @default("Welfare") @map("belongs_to") @db.VarChar(50)
   
 
   feeType     FeeType      @relation(fields: [feeTypeId], references: [feeTypeId], onDelete: Cascade)

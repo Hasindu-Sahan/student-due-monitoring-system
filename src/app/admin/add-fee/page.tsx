@@ -14,6 +14,8 @@ type Options = {
   levels: number[];
 };
 
+const belongsToOptions = ["Welfare", "FAS_Office", "FBSF_Office", "FOT_Office"] as const;
+
 function localDateInputValue(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -50,15 +52,31 @@ export default function AddFeePage() {
     faculties: [],
     levels: [],
   });
-  const [receiverType, setReceiverType] = useState<"faculty" | "student">("faculty");
   const [feeName, setFeeName] = useState("");
   const [category, setCategory] = useState("");
+  const [belongsTo, setBelongsTo] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [amount, setAmount] = useState("");
+  const [level, setLevel] = useState<number | "all">("all");
   const [faculty, setFaculty] = useState("all");
-  const [level, setLevel] = useState("all");
   const [studentId, setStudentId] = useState("");
+
+  const [receiverType, setReceiverType] = useState<"faculty" | "specific_student">("faculty");
+  const receiverIsSpecificStudent = receiverType === "specific_student";
+
+  const lockedFacultyForBelongsTo = (value: string) => {
+    if (value === "FAS_Office") return "FAS";
+    if (value === "FBSF_Office") return "FBSF";
+    if (value === "FOT_Office") return "FOT";
+    return null;
+  };
+
+  useEffect(() => {
+    const locked = lockedFacultyForBelongsTo(belongsTo);
+    if (locked) setFaculty(locked);
+  }, [belongsTo]);
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
@@ -123,7 +141,7 @@ export default function AddFeePage() {
     setMessage("");
     const normalizedAmount = normalizeAmount(amount);
 
-    if (!feeName.trim() || !category.trim() || !dueDate || !amount) {
+    if (!feeName.trim() || !category.trim() || !belongsTo || !dueDate || !amount) {
       setMessageType("error");
       setMessage("Please fill all required fields.");
       return;
@@ -141,18 +159,33 @@ export default function AddFeePage() {
       return;
     }
 
-    if (receiverType === "student" && !studentId.trim()) {
-      setMessageType("error");
-      setMessage("Please enter the student ID.");
-      return;
+    const isSpecificStudent = receiverIsSpecificStudent;
+
+    if (isSpecificStudent) {
+      if (!studentId.trim()) {
+        setMessageType("error");
+        setMessage("Please enter the student ID.");
+        return;
+      }
+    } else {
+      // For faculty-based fees, Level can be "all" (means all levels).
+      // So we only block when the state is still invalid/empty.
+      if (level === undefined || level === null) {
+        setMessageType("error");
+        setMessage("Please select a level.");
+        return;
+      }
     }
+
 
     setSaving(true);
 
-    const receiverFilters =
-      receiverType === "faculty"
-        ? { faculty, level }
-        : { studentId: studentId.trim() };
+    const receiverFilters = isSpecificStudent
+      ? { studentId: studentId.trim() }
+      : level === "all"
+        ? { faculty, level: "all" }
+        : { faculty, level: String(level) };
+
 
     const response = await fetch("/api/admin/fees", {
       method: "POST",
@@ -160,6 +193,7 @@ export default function AddFeePage() {
       body: JSON.stringify({
         feeName: feeName.trim(),
         category: category.trim(),
+        belongsTo,
         description: description.trim(),
         dueDate,
         amount: Number(normalizedAmount),
@@ -167,6 +201,7 @@ export default function AddFeePage() {
         userId: sessionUserId,
       }),
     });
+
 
     const data = await response.json();
     setSaving(false);
@@ -181,12 +216,14 @@ export default function AddFeePage() {
     setMessage(`Fee added for ${data.assignedCount} receiver${data.assignedCount === 1 ? "" : "s"}.`);
     setFeeName("");
     setCategory("");
+    setBelongsTo("");
     setDescription("");
     setDueDate("");
     setAmount("");
     setStudentId("");
     setFaculty("all");
     setLevel("all");
+    setReceiverType("faculty");
   };
 
   return (
@@ -201,7 +238,7 @@ export default function AddFeePage() {
       subtitle="Create and assign a new student due"
     >
       <form noValidate onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <section className="rounded-2xl border bg-card p-6 shadow-card">
+<section className="rounded-2xl border bg-card p-6 shadow-card flex flex-col text-center justify-center">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold">Fee Details</h2>
@@ -245,6 +282,117 @@ export default function AddFeePage() {
               </datalist>
             </label>
 
+            {/* belongsTo dropdown line (ONLY field in that line) */}
+            <div className="sm:col-span-2">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Belongs To</span>
+                <select
+                  required
+                  value={belongsTo}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setBelongsTo(next);
+
+                    // Auto-fill faculty based on belongsTo selection and lock it.
+                    if (next === "FAS_Office") setFaculty("FAS");
+                    if (next === "FBSF_Office") setFaculty("FBSF");
+                    if (next === "FOT_Office") setFaculty("FOT");
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Select owner</option>
+                  {belongsToOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* Receiver radio section placed after belongsTo line */}
+            <div className="sm:col-span-2">
+              <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Receiver</span>
+              <div className="flex items-center gap-4">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="receiver"
+                    value="faculty"
+                    checked={receiverType === "faculty"}
+                    onChange={() => setReceiverType("faculty")}
+                  />
+                  Faculty
+                </label>
+
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="receiver"
+                    value="specific_student"
+                    checked={receiverType === "specific_student"}
+                    onChange={() => setReceiverType("specific_student")}
+                  />
+                  Specific Student
+                </label>
+              </div>
+            </div>
+
+            {/* Faculty/Level or StudentID depending on receiver */}
+            {receiverIsSpecificStudent ? (
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Student ID</span>
+                <input required value={studentId} onChange={(event) => setStudentId(event.target.value)} className={inputClass} />
+              </label>
+            ) : (
+              <>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Faculty</span>
+                  <select
+                    value={faculty}
+                    onChange={(event) => setFaculty(event.target.value)}
+                    className={inputClass}
+                    disabled={belongsTo === "FAS_Office" || belongsTo === "FBSF_Office" || belongsTo === "FOT_Office"}
+                  >
+                    <option value="all">All faculties</option>
+                    {options.faculties.map((item) => {
+                      // Hide non-matching options when belongsTo locks faculty.
+                      const lockedFaculty =
+                        belongsTo === "FAS_Office"
+                          ? "FAS"
+                          : belongsTo === "FBSF_Office"
+                            ? "FBSF"
+                            : belongsTo === "FOT_Office"
+                              ? "FOT"
+                              : null;
+                      if (lockedFaculty && item !== lockedFaculty) return null;
+                      return (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Level</span>
+                  <select
+                    value={level}
+                    onChange={(event) => setLevel(event.target.value === "all" ? "all" : Number(event.target.value))}
+                    className={inputClass}
+                  >
+                    <option value="all">All Levels</option>
+                    {options.levels.map((item) => (
+                      <option key={item} value={String(item)}>
+                        Level {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Description</span>
               <textarea value={description} onChange={(event) => setDescription(event.target.value)} className={textareaClass} />
@@ -287,79 +435,6 @@ export default function AddFeePage() {
               </div>
             </div>
           )}
-        </section>
-
-        <section className="rounded-2xl border bg-card p-6 shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold">Receivers</h2>
-              <p className="text-xs text-muted-foreground">Faculty group or one student</p>
-            </div>
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-soft text-success">
-              <Users className="h-4 w-4" />
-            </span>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border bg-muted/30 p-1">
-            <button
-              type="button"
-              onClick={() => setReceiverType("faculty")}
-              className={`h-10 rounded-lg text-sm font-medium transition ${
-                receiverType === "faculty" ? "bg-card text-foreground shadow-soft" : "text-muted-foreground"
-              }`}
-            >
-              Faculty
-            </button>
-            <button
-              type="button"
-              onClick={() => setReceiverType("student")}
-              className={`h-10 rounded-lg text-sm font-medium transition ${
-                receiverType === "student" ? "bg-card text-foreground shadow-soft" : "text-muted-foreground"
-              }`}
-            >
-              Specific Student
-            </button>
-          </div>
-
-          {receiverType === "faculty" ? (
-            <div className="mt-5 space-y-4">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Faculty</span>
-                <select value={faculty} onChange={(event) => setFaculty(event.target.value)} className={inputClass}>
-                  <option value="all">All faculties</option>
-                  {options.faculties.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Level</span>
-                <select value={level} onChange={(event) => setLevel(event.target.value)} className={inputClass}>
-                  <option value="all">All levels</option>
-                  {options.levels.map((item) => (
-                    <option key={item} value={String(item)}>
-                      Level {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ) : (
-            <div className="mt-5">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Student ID</span>
-                <input
-                  required={receiverType === "student"}
-                  value={studentId}
-                  onChange={(event) => setStudentId(event.target.value)}
-                  className={inputClass}
-                />
-              </label>
-            </div>
-          )}
 
           <div className="mt-6 flex flex-col gap-3">
             <button
@@ -370,7 +445,11 @@ export default function AddFeePage() {
               {saving ? "Adding..." : "Add Fee"}
             </button>
             {message && (
-              <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${messageType === "error" ? "bg-destructive-soft text-destructive" : "bg-muted/30 text-muted-foreground"}`}>
+              <div
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
+                  messageType === "error" ? "bg-destructive-soft text-destructive" : "bg-muted/30 text-muted-foreground"
+                }`}
+              >
                 <CheckCircle2 className={`h-4 w-4 ${messageType === "error" ? "text-destructive" : "text-success"}`} />
                 {message}
               </div>
@@ -381,3 +460,4 @@ export default function AddFeePage() {
     </PortalLayout>
   );
 }
+

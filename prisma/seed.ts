@@ -10,12 +10,14 @@ async function main() {
   console.log("Cleaning known sample data...");
 
   const sampleStudentIds = ["IT2023001"];
-  const sampleEmployeeIds = ["EMP001", "A001", "fac001"];
+  const sampleEmployeeIds = ["EMP001", "A001", "A002", "FAC001", "WEL001"];
   const sampleEmails = [
     "sanduni.w@university.lk",
     "bursar@university.lk",
     "a001@university.lk",
+    "a002@university.lk",
     "fac001@university.lk",
+    "wel001@university.lk",
   ];
 
 
@@ -170,26 +172,347 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------
+  // Seed system administrator login
+  //   username : A002
+  //   password : a1234
+  //   role     : Admin (full portal access)
+  // ---------------------------------------------------------------------
+  const systemAdminUsername = "A002";
+  const systemAdminPassword = "a1234";
+  const systemAdminEmail = "a002@university.lk";
+
+  const existingSystemAdminUser = await prisma.user.findFirst({
+    where: { username: systemAdminUsername },
+  });
+
+  if (existingSystemAdminUser) {
+    const passwordHash = await bcrypt.hash(systemAdminPassword, 10);
+    await prisma.user.update({
+      where: { userId: existingSystemAdminUser.userId },
+      data: {
+        username: systemAdminUsername,
+        passwordHash,
+        role: "Admin",
+        email: systemAdminEmail,
+        isActive: true,
+      },
+    });
+
+    const existingSystemAdminProfile = await prisma.admin.findFirst({
+      where: {
+        OR: [
+          { userId: existingSystemAdminUser.userId },
+          { employeeId: systemAdminUsername },
+        ],
+      },
+    });
+
+    if (!existingSystemAdminProfile) {
+      await prisma.admin.create({
+        data: {
+          employeeId: systemAdminUsername,
+          firstName: "System",
+          lastName: "Administrator",
+          phone: null,
+          designation: "System Administrator",
+          userId: existingSystemAdminUser.userId,
+        },
+      });
+    } else {
+      await prisma.admin.update({
+        where: { adminId: existingSystemAdminProfile.adminId },
+        data: {
+          employeeId: systemAdminUsername,
+          firstName: "System",
+          lastName: "Administrator",
+          phone: null,
+          designation: "System Administrator",
+          userId: existingSystemAdminUser.userId,
+        },
+      });
+    }
+
+    console.log("System administrator login user already exists; refreshed credentials/profile.");
+  } else {
+    const passwordHash = await bcrypt.hash(systemAdminPassword, 10);
+
+    const createdSystemAdminUser = await prisma.user.create({
+      data: {
+        username: systemAdminUsername,
+        passwordHash,
+        role: "Admin",
+        email: systemAdminEmail,
+        isActive: true,
+        lastLogin: null,
+      },
+    });
+
+    await prisma.admin.create({
+      data: {
+        employeeId: systemAdminUsername,
+        firstName: "System",
+        lastName: "Administrator",
+        phone: null,
+        designation: "System Administrator",
+        userId: createdSystemAdminUser.userId,
+      },
+    });
+
+    console.log("Seeded system administrator login: A002 / a1234 (role Admin)");
+  }
+
+  // ---------------------------------------------------------------------
   // Seed faculty (sub-admin) login
-  //   username : fac001
+  //   username : FAC001
   //   password : f1234
   //   role     : Staff (restricted portal access)
   // ---------------------------------------------------------------------
-  const facultyUsername = "fac001";
+  const facultyUsername = "FAC001";
   const facultyPassword = "f1234";
   const facultyEmail = "fac001@university.lk";
+
+  // ---------------------------------------------------------------------
+  // Seed FOT office login
+  //   employeeID/username : FAC002
+  //   password             : f1234
+  //   designation          : FOT_Office
+  //   role                 : Staff (restricted portal access)
+  // ---------------------------------------------------------------------
+  const fotOfficeUsername = "FAC002";
+  const fotOfficePassword = "f1234";
+  const fotOfficeEmail = "fac002@university.lk";
+
+  // ---------------------------------------------------------------------
+  // Seed FBSF office login
+  //   employeeID/username : FAC003
+  //   password             : f1234
+  //   designation          : FBSF_Office
+  //   role                 : Staff (restricted portal access)
+  // ---------------------------------------------------------------------
+  const fbsfOfficeUsername = "FAC003";
+  const fbsfOfficePassword = "f1234";
+  const fbsfOfficeEmail = "fac003@university.lk";
+
+
+  // Seed FOT office login (FAC002)
+  const existingFotOfficeUser = await prisma.user.findFirst({
+    where: { username: fotOfficeUsername },
+  });
+
+  const fotOfficePasswordHash = await bcrypt.hash(fotOfficePassword, 10);
+
+  if (existingFotOfficeUser) {
+    await prisma.user.update({
+      where: { userId: existingFotOfficeUser.userId },
+      data: {
+        username: fotOfficeUsername,
+        passwordHash: fotOfficePasswordHash,
+        role: "Staff",
+        email: fotOfficeEmail,
+        isActive: true,
+      },
+    });
+
+    const existingFotOfficeProfile = await prisma.admin.findFirst({
+      where: {
+        OR: [
+          { userId: existingFotOfficeUser.userId },
+          { employeeId: fotOfficeUsername },
+        ],
+      },
+    });
+
+    if (existingFotOfficeProfile) {
+      await prisma.admin.update({
+        where: { adminId: existingFotOfficeProfile.adminId },
+        data: {
+          employeeId: fotOfficeUsername,
+          firstName: "FOT",
+          lastName: "Office",
+          phone: null,
+          designation: "FOT_Office",
+          userId: existingFotOfficeUser.userId,
+        },
+      });
+    } else {
+      await prisma.admin.create({
+        data: {
+          employeeId: fotOfficeUsername,
+          firstName: "FOT",
+          lastName: "Office",
+          phone: null,
+          designation: "FOT_Office",
+          userId: existingFotOfficeUser.userId,
+        },
+      });
+    }
+
+    console.log("FOT office login user already exists; refreshed credentials/profile.");
+  } else {
+    const createdFotOfficeUser = await prisma.user.create({
+      data: {
+        username: fotOfficeUsername,
+        passwordHash: fotOfficePasswordHash,
+        role: "Staff",
+        email: fotOfficeEmail,
+        isActive: true,
+        lastLogin: null,
+      },
+    });
+
+    await prisma.admin.create({
+      data: {
+        employeeId: fotOfficeUsername,
+        firstName: "FOT",
+        lastName: "Office",
+        phone: null,
+        designation: "FOT_Office",
+        userId: createdFotOfficeUser.userId,
+      },
+    });
+
+    console.log("Seeded FOT office login: FAC002 / f1234 (role Staff + Admin profile)");
+  }
+
+  // Seed FBSF office login (FAC003)
+  const existingFbsfOfficeUser = await prisma.user.findFirst({
+    where: { username: fbsfOfficeUsername },
+  });
+
+  const fbsfOfficePasswordHash = await bcrypt.hash(fbsfOfficePassword, 10);
+
+  if (existingFbsfOfficeUser) {
+    await prisma.user.update({
+      where: { userId: existingFbsfOfficeUser.userId },
+      data: {
+        username: fbsfOfficeUsername,
+        passwordHash: fbsfOfficePasswordHash,
+        role: "Staff",
+        email: fbsfOfficeEmail,
+        isActive: true,
+      },
+    });
+
+    const existingFbsfOfficeProfile = await prisma.admin.findFirst({
+      where: {
+        OR: [
+          { userId: existingFbsfOfficeUser.userId },
+          { employeeId: fbsfOfficeUsername },
+        ],
+      },
+    });
+
+    if (existingFbsfOfficeProfile) {
+      await prisma.admin.update({
+        where: { adminId: existingFbsfOfficeProfile.adminId },
+        data: {
+          employeeId: fbsfOfficeUsername,
+          firstName: "FBSF",
+          lastName: "Office",
+          phone: null,
+          designation: "FBSF_Office",
+          userId: existingFbsfOfficeUser.userId,
+        },
+      });
+    } else {
+      await prisma.admin.create({
+        data: {
+          employeeId: fbsfOfficeUsername,
+          firstName: "FBSF",
+          lastName: "Office",
+          phone: null,
+          designation: "FBSF_Office",
+          userId: existingFbsfOfficeUser.userId,
+        },
+      });
+    }
+
+    console.log("FBSF office login user already exists; refreshed credentials/profile.");
+  } else {
+    const createdFbsfOfficeUser = await prisma.user.create({
+      data: {
+        username: fbsfOfficeUsername,
+        passwordHash: fbsfOfficePasswordHash,
+        role: "Staff",
+        email: fbsfOfficeEmail,
+        isActive: true,
+        lastLogin: null,
+      },
+    });
+
+    await prisma.admin.create({
+      data: {
+        employeeId: fbsfOfficeUsername,
+        firstName: "FBSF",
+        lastName: "Office",
+        phone: null,
+        designation: "FBSF_Office",
+        userId: createdFbsfOfficeUser.userId,
+      },
+    });
+
+    console.log("Seeded FBSF office login: FAC003 / f1234 (role Staff + Admin profile)");
+  }
 
   const existingFacultyUser = await prisma.user.findFirst({
     where: { username: facultyUsername },
   });
 
-  if (!existingFacultyUser) {
-    const passwordHash = await bcrypt.hash(facultyPassword, 10);
 
+  const facultyPasswordHash = await bcrypt.hash(facultyPassword, 10);
+
+  if (existingFacultyUser) {
+    await prisma.user.update({
+      where: { userId: existingFacultyUser.userId },
+      data: {
+        username: facultyUsername,
+        passwordHash: facultyPasswordHash,
+        role: "Staff",
+        email: facultyEmail,
+        isActive: true,
+      },
+    });
+
+    const existingFacultyProfile = await prisma.admin.findFirst({
+      where: {
+        OR: [
+          { userId: existingFacultyUser.userId },
+          { employeeId: facultyUsername },
+        ],
+      },
+    });
+
+    if (existingFacultyProfile) {
+      await prisma.admin.update({
+        where: { adminId: existingFacultyProfile.adminId },
+        data: {
+          employeeId: facultyUsername,
+          firstName: "FAS",
+          lastName: "Office",
+          phone: null,
+          designation: "FAS_Office",
+          userId: existingFacultyUser.userId,
+        },
+      });
+    } else {
+      await prisma.admin.create({
+        data: {
+          employeeId: facultyUsername,
+          firstName: "FAS",
+          lastName: "Office",
+          phone: null,
+          designation: "FAS_Office",
+          userId: existingFacultyUser.userId,
+        },
+      });
+    }
+
+    console.log("Faculty login user already exists; refreshed credentials/profile.");
+  } else {
     const createdFacultyUser = await prisma.user.create({
       data: {
         username: facultyUsername,
-        passwordHash,
+        passwordHash: facultyPasswordHash,
         role: "Staff",
         email: facultyEmail,
         isActive: true,
@@ -202,17 +525,104 @@ async function main() {
     await prisma.admin.create({
       data: {
         employeeId: facultyUsername,
-        firstName: "Faculty",
-        lastName: "User",
+        firstName: "FAS",
+        lastName: "Office",
         phone: null,
-        designation: "Faculty",
+        designation: "FAS_Office",
         userId: createdFacultyUser.userId,
       },
     });
 
-    console.log("Seeded faculty login: fac001 / f1234 (role Staff + Admin profile)");
+    console.log("Seeded faculty login: FAC001 / f1234 (role Staff + Admin profile)");
+  }
+
+  // ---------------------------------------------------------------------
+  // Seed welfare (sub-admin) login
+  //   username : WEL001
+  //   password : w1234
+  //   role     : Staff (restricted welfare payment view)
+  // ---------------------------------------------------------------------
+  const welfareUsername = "WEL001";
+  const welfarePassword = "w1234";
+  const welfareEmail = "wel001@university.lk";
+
+  const existingWelfareUser = await prisma.user.findFirst({
+    where: { username: welfareUsername },
+  });
+
+  const welfarePasswordHash = await bcrypt.hash(welfarePassword, 10);
+
+  if (existingWelfareUser) {
+    await prisma.user.update({
+      where: { userId: existingWelfareUser.userId },
+      data: {
+        username: welfareUsername,
+        passwordHash: welfarePasswordHash,
+        role: "Staff",
+        email: welfareEmail,
+        isActive: true,
+      },
+    });
+
+    const existingWelfareProfile = await prisma.admin.findFirst({
+      where: {
+        OR: [
+          { userId: existingWelfareUser.userId },
+          { employeeId: welfareUsername },
+        ],
+      },
+    });
+
+    if (existingWelfareProfile) {
+      await prisma.admin.update({
+        where: { adminId: existingWelfareProfile.adminId },
+        data: {
+          employeeId: welfareUsername,
+          firstName: "Welfare",
+          lastName: "Office",
+          phone: null,
+          designation: "Welfare",
+          userId: existingWelfareUser.userId,
+        },
+      });
+    } else {
+      await prisma.admin.create({
+        data: {
+          employeeId: welfareUsername,
+          firstName: "Welfare",
+          lastName: "Office",
+          phone: null,
+          designation: "Welfare",
+          userId: existingWelfareUser.userId,
+        },
+      });
+    }
+
+    console.log("Welfare login user already exists; refreshed credentials/profile.");
   } else {
-    console.log("Faculty login user already exists; skipping seed.");
+    const createdWelfareUser = await prisma.user.create({
+      data: {
+        username: welfareUsername,
+        passwordHash: welfarePasswordHash,
+        role: "Staff",
+        email: welfareEmail,
+        isActive: true,
+        lastLogin: null,
+      },
+    });
+
+    await prisma.admin.create({
+      data: {
+        employeeId: welfareUsername,
+        firstName: "Welfare",
+        lastName: "Office",
+        phone: null,
+        designation: "Welfare",
+        userId: createdWelfareUser.userId,
+      },
+    });
+
+    console.log("Seeded welfare login: WEL001 / w1234 (role Staff + Admin profile)");
   }
 }
 
