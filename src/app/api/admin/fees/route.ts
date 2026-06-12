@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
 
-const BELONGS_TO_OPTIONS = ["Welfare", "FAS_Faculty", "FBSF_Faculty", "FOT_Faculty", "SPECIFIC_STUDENT"];
+const BELONGS_TO_OPTIONS = ["Welfare", "FAS_Office", "FBSF_Office", "FOT_Office", "SPECIFIC_STUDENT"];
 
 
 function todayDateOnly() {
