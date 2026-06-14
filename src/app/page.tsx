@@ -124,7 +124,9 @@ export default function LoginPage() {
                     data.role === "student"
                       ? "/student"
                       : data.role === "faculty"
-                        ? "/faculty"
+                        ? data.profileId === "FAC001"
+                          ? "/faculty/FAS_Office"
+                          : "/faculty"
                         : "/admin";
                   router.push(nextRoute);
                 } catch (err) {

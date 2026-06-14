@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
+import { belongsToVariants, normalizeBelongsTo } from "@/lib/belongs-to";
 
 export async function GET(req: NextRequest) {
   try {
-    const belongsTo = req.nextUrl.searchParams.get("belongsTo")?.trim();
+    const belongsTo = normalizeBelongsTo(req.nextUrl.searchParams.get("belongsTo"));
+    const belongsToFilters = belongsTo ? belongsToVariants(belongsTo) : [];
 
     const payments = await prisma.payment.findMany({
       where: belongsTo
         ? {
             studentFee: {
               fee: {
-                // fee.belongsTo is the scope discriminator (e.g. FAS_Faculty)
-                belongsTo,
+                // fee.belongsTo is the scope discriminator.
+                belongsTo: { in: belongsToFilters },
               },
             },
           }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ElementType } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import {
   Pencil,
@@ -29,7 +30,7 @@ function Field({
   label,
   value,
 }: {
-  icon: React.ElementType;
+  icon: ElementType;
   label: string;
   value: string;
 }) {
@@ -211,16 +212,10 @@ export default function FacultyProfile() {
                 )}
               </div>
               <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={() => setMode(null)}
-                  className="rounded-xl border px-4 py-2 text-sm font-medium"
-                >
+                <button onClick={() => setMode(null)} className="rounded-xl border px-4 py-2 text-sm font-medium">
                   Cancel
                 </button>
-                <button
-                  onClick={save}
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-                >
+                <button onClick={save} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
                   Save
                 </button>
               </div>
@@ -236,11 +231,7 @@ export default function FacultyProfile() {
             <Field icon={Mail} label="Email" value={faculty.email} />
             <Field icon={Phone} label="Phone" value={faculty.phone || "N/A"} />
             <Field icon={BadgeCheck} label="Access Level" value={`${portalName} (Sub-Admin)`} />
-            <Field
-              icon={BadgeCheck}
-              label="Last Sign-in"
-              value={faculty.lastLogin ? new Date(faculty.lastLogin).toLocaleString() : "N/A"}
-            />
+            <Field icon={BadgeCheck} label="Last Sign-in" value={faculty.lastLogin ? new Date(faculty.lastLogin).toLocaleString() : "N/A"} />
           </div>
         </div>
 

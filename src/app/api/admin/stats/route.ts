@@ -1,12 +1,29 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { belongsToVariants, normalizeBelongsTo } from "@/lib/belongs-to";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const belongsTo = normalizeBelongsTo(req.nextUrl.searchParams.get("belongsTo"));
+    const belongsToFilters = belongsTo ? belongsToVariants(belongsTo) : [];
+
+    const studentFeesWhere = belongsTo
+      ? { fee: { belongsTo: { in: belongsToFilters } } }
+      : undefined;
     const studentFees = await prisma.studentFee.findMany({
+      where: studentFeesWhere,
       include: { fee: true, payments: true },
     });
     const payments = await prisma.payment.findMany({
+      where: belongsTo
+        ? {
+            studentFee: {
+              fee: {
+                belongsTo: { in: belongsToFilters },
+              },
+            },
+          }
+        : undefined,
       orderBy: { paymentId: "desc" },
       select: { studentFeeId: true, amountPaid: true, status: true },
     });

@@ -52,14 +52,24 @@ export function PortalLayout({
   children,
   title,
   subtitle,
+  facultyBasePath = "/faculty",
 }: {
   role: "student" | "admin" | "faculty";
   user: { name: string; sub: string; initials: string };
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  facultyBasePath?: string;
 }) {
-  const nav = role === "student" ? studentNav : role === "faculty" ? facultyNav : adminNav;
+  const nav =
+    role === "student"
+      ? studentNav
+      : role === "faculty"
+        ? facultyNav.map((item) => ({
+            ...item,
+            to: item.to.startsWith("/faculty") ? item.to.replace("/faculty", facultyBasePath) : item.to,
+          }))
+        : adminNav;
   const pathname = usePathname();
   const [hasUnread, setHasUnread] = useState(false);
   const isWelfarePortal =
@@ -104,7 +114,9 @@ export function PortalLayout({
             : role === "faculty"
               ? isWelfarePortal
                 ? "Welfare Portal"
-                : "Faculty Portal"
+                : facultyBasePath === "/faculty/FAS_Office"
+                  ? "FAS Portal"
+                  : "Faculty Portal"
               : "Student Portal"}
         </div>
 

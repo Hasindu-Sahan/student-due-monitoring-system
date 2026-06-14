@@ -33,7 +33,10 @@ export default function AdminDashboard() {
 
 
 
-  const load = () => {
+  const belongsToOptions = ["ALL", "FAS_Office", "FBSF_Office", "FOT_Office"] as const;
+  const [belongsTo, setBelongsTo] = useState<(typeof belongsToOptions)[number]>("ALL");
+
+  const load = (nextBelongsTo: (typeof belongsToOptions)[number] = belongsTo) => {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     const params = new URLSearchParams();
@@ -41,9 +44,12 @@ export default function AdminDashboard() {
     if (session?.username) params.set("username", session.username);
     const accountQuery = params.toString() ? `?${params.toString()}` : "";
 
+    const statsParams = new URLSearchParams();
+    if (nextBelongsTo !== "ALL") statsParams.set("belongsTo", nextBelongsTo);
+
     Promise.all([
       fetch("/api/admin/payments").then(r => r.json()),
-      fetch("/api/admin/stats").then(r => r.json()),
+      fetch(`/api/admin/stats${statsParams.toString() ? `?${statsParams.toString()}` : ""}`).then(r => r.json()),
       fetch(`/api/admin/account${accountQuery}`).then(r => r.json()),
     ]).then(([, s, a]) => {
       setStats(s);
@@ -54,8 +60,13 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    load();
+    load("ALL");
   }, []);
+
+  useEffect(() => {
+    // reload charts/cards when belongsTo changes
+    load(belongsTo);
+  }, [belongsTo]);
 
   const statusData = [
     { name: "Approved", value: stats.approved, color: statusColors.Approved },
@@ -73,6 +84,27 @@ export default function AdminDashboard() {
 
   return (
     <PortalLayout role="admin" user={{ name: `${admin.firstName} ${admin.lastName}`.trim(), sub: admin.designation, initials: `${admin.firstName?.[0] ?? "A"}${admin.lastName?.[0] ?? ""}` }} title="Admin Dashboard" subtitle="Bursar's overview">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Dashboard Filter</h2>
+          <p className="text-xs text-muted-foreground">Choose which office/faculty data to display</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Belongs To</span>
+          <select
+            className="h-9 rounded-lg border bg-card px-3 text-xs font-medium"
+            value={belongsTo}
+            onChange={(e) => setBelongsTo(e.target.value as (typeof belongsToOptions)[number])}
+          >
+            {belongsToOptions.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt === "ALL" ? "All" : opt}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <SummaryCard label="Total Remaining Dues" value={lkr(stats.totalRemainingDues)} tone="primary" icon={CircleDollarSign} />
         <SummaryCard label="Total Pending Dues" value={lkr(stats.totalPendingDues)} tone="warning" icon={Clock} />

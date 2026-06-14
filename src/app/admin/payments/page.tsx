@@ -22,6 +22,32 @@ const paymentsPerPage = 5;
 
 
 export default function AdminPayments() {
+  // Office-specific routing based on logged-in admin's username.
+  // FAC001 -> FAS_Office, FAC002 -> FOT_Office, FAC003 -> FBSF_Office
+  useEffect(() => {
+    const stored = localStorage.getItem("portalUser");
+    if (!stored) return;
+    try {
+      const session = JSON.parse(stored);
+      const username: string | undefined = session?.username;
+      if (!username) return;
+
+      const map: Record<string, string> = {
+        FAC001: "/admin/FAS_Office/payments",
+        FAC002: "/admin/FOT_Office/payments",
+        FAC003: "/admin/FBSF_Office/payments",
+      };
+
+      const target = map[username];
+      if (target && typeof window !== "undefined") {
+        window.location.replace(target);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<Stats>({ totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
