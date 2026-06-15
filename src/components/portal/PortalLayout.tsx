@@ -114,16 +114,22 @@ export function PortalLayout({
             : role === "faculty"
               ? isWelfarePortal
                 ? "Welfare Portal"
-                : facultyBasePath === "/faculty/FAS_Office"
+                : facultyBasePath.includes("FAS_Office")
                   ? "FAS Portal"
-                  : "Faculty Portal"
+                  : facultyBasePath.includes("FOT_Office")
+                    ? "FOT Portal"
+                    : facultyBasePath.includes("FBSF_Office")
+                      ? "FBSF Portal"
+                      : "Faculty Portal"
               : "Student Portal"}
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
           {nav.map((item) => {
-            const active =
-              item.to === `/${role}`
+            const isDashboardItem = item.label.toLowerCase() === "dashboard";
+            const active = isDashboardItem
+              ? pathname === item.to
+              : item.to === `/${role}`
                 ? pathname === item.to
                 : pathname.startsWith(item.to);
             return (

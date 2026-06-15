@@ -116,9 +116,11 @@ function statusCount(payments: Payment[], status: string) {
 export function OfficeDashboardPage({
   defaultScope,
   facultyBasePath = "/faculty",
+  hidePaymentDetails = false,
 }: {
   defaultScope: string;
   facultyBasePath?: string;
+  hidePaymentDetails?: boolean;
 }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [profile, setProfile] = useState<Profile>({
@@ -435,68 +437,6 @@ export function OfficeDashboardPage({
               </ResponsiveContainer>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* ── Payment details table ───────────────────────────────────────── */}
-      <div className="mt-6 rounded-2xl border bg-card shadow-card">
-        <div className="flex items-center justify-between border-b px-6 py-4">
-          <div>
-            <h2 className="text-base font-semibold">Payment Details</h2>
-            <p className="text-xs text-muted-foreground">
-              Filtered by {meta.label} Office
-              {filters.feeType ? ` · ${filters.feeType}` : ""}
-              {filters.category ? ` · ${filters.category}` : ""}
-              {filters.level ? ` · Level ${filters.level}` : ""}
-            </p>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Showing {Math.min(recentPayments.length, filtered.length)} of {filtered.length}
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                {["Date", "Student ID", "Student Name", "Fee Type", "Amount", "Status"].map(
-                  (header) => (
-                    <th key={header} className="px-6 py-3 font-medium">
-                      {header}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                    Loading payments…
-                  </td>
-                </tr>
-              ) : recentPayments.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                    {loadError || `No payment data available for ${meta.label} Office`}
-                  </td>
-                </tr>
-              ) : (
-                recentPayments.map((payment) => (
-                  <tr key={payment.paymentId} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-6 py-4 text-muted-foreground">{payment.date}</td>
-                    <td className="px-6 py-4 font-mono text-xs">{payment.sid}</td>
-                    <td className="px-6 py-4 font-medium">{payment.name}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{payment.feeType}</td>
-                    <td className="px-6 py-4 font-semibold tabular-nums">{lkr(payment.amount)}</td>
-                    <td className="px-6 py-4">
-                      <StatusBadge status={payment.status} variant="approval" />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </PortalLayout>

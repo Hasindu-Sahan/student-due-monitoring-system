@@ -12,6 +12,9 @@ type PortalSession = {
   username?: string;
   profileId?: string;
   designation?: string;
+  dbRole?: string;
+  role?: string;
+  name?: string;
 };
 
 type Payment = {
@@ -44,12 +47,24 @@ const OFFICES: Record<string, { scope: string; label: string; initials: string }
   Welfare: { scope: "Welfare", label: "Welfare", initials: "W" },
 };
 
-function scopeFromSession(session: PortalSession | null, fallbackScope: string) {
-  const value = String(`${session?.username ?? ""} ${session?.profileId ?? ""} ${session?.designation ?? ""}`).toUpperCase();
+function scopeFromSession(session: PortalSession | null, fallbackScope: string): string {
+  if (!session) return fallbackScope;
+
+  const value = [
+    session.username ?? "",
+    session.profileId ?? "",
+    session.designation ?? "",
+    session.dbRole ?? "",
+    session.role ?? "",
+  ]
+    .join(" ")
+    .toUpperCase();
+
   if (value.includes("WEL001") || value.includes("WELFARE")) return "Welfare";
-  if (value.includes("FAC001") || value.includes("FAS_OFFICE")) return "FAS_Office";
-  if (value.includes("FAC002") || value.includes("FOT_OFFICE")) return "FOT_Office";
-  if (value.includes("FAC003") || value.includes("FBSF_OFFICE")) return "FBSF_Office";
+  if (value.includes("FAC001") || value.includes("FAS_OFFICE") || value.includes("FAS")) return "FAS_Office";
+  if (value.includes("FAC002") || value.includes("FOT_OFFICE") || value.includes("FOT")) return "FOT_Office";
+  if (value.includes("FAC003") || value.includes("FBSF_OFFICE") || value.includes("FBSF")) return "FBSF_Office";
+
   return fallbackScope;
 }
 
