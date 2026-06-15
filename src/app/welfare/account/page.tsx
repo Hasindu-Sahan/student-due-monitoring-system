@@ -1,1 +1,3 @@
-export { default } from "../../faculty/account/page";
+export { default } from "../../welfare/account/page";
+
+

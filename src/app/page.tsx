@@ -124,13 +124,17 @@ export default function LoginPage() {
                     data.role === "student"
                       ? "/student"
                       : data.role === "faculty"
-                        ? data.profileId === "FAC001"
-                          ? "/faculty/FAS_Office"
-                          : data.profileId === "FAC002"
-                            ? "/faculty/FOT_Office"
-                            : data.profileId === "FAC003"
-                              ? "/faculty/FBSF_Office"
-                              : "/faculty/FAS_Office"
+                        ? // Welfare is a separate portal section
+                          data.profileId === "WEL001" ||
+                            String(data.profileId ?? "").toUpperCase().includes("WEL")
+                          ? "/welfare"
+                          : data.profileId === "FAC001"
+                            ? "/faculty/FAS_Office"
+                            : data.profileId === "FAC002"
+                              ? "/faculty/FOT_Office"
+                              : data.profileId === "FAC003"
+                                ? "/faculty/FBSF_Office"
+                                : "/faculty/FAS_Office"
                         : "/admin";
                   router.push(nextRoute);
                 } catch (err) {
