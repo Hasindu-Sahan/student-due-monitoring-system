@@ -68,13 +68,19 @@ export default function AdminDashboard() {
     load(belongsTo);
   }, [belongsTo]);
 
-  const statusData = [
+  const statusTotal = stats.approved + stats.pending + stats.rejected;
+
+  const statusRows = [
+    { label: "Pending", value: stats.pending, color: statusColors.Pending },
+    { label: "Approved", value: stats.approved, color: statusColors.Approved },
+    { label: "Rejected", value: stats.rejected, color: statusColors.Rejected },
+  ];
+
+  const statusPieData = [
     { name: "Approved", value: stats.approved, color: statusColors.Approved },
     { name: "Pending", value: stats.pending, color: statusColors.Pending },
     { name: "Rejected", value: stats.rejected, color: statusColors.Rejected },
-  ].filter((item) => item.value > 0);
-
-  const statusTotal = stats.approved + stats.pending + stats.rejected;
+  ];
   const dueData = [
     { name: "Paid", amount: stats.totalPaid, color: dueColors.Paid },
     { name: "Remaining", amount: stats.totalRemainingDues, color: dueColors.Remaining },
@@ -124,15 +130,27 @@ export default function AdminDashboard() {
           </div>
           <div className="mt-5 grid min-h-[260px] gap-5 sm:grid-cols-[220px_minmax(0,1fr)]">
             <div className="relative h-[220px]">
-              {statusData.length > 0 ? (
+              {statusPieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={96} paddingAngle={3}>
-                      {statusData.map((entry) => (
+                    <Pie
+                      data={statusPieData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={62}
+                      outerRadius={96}
+                      paddingAngle={3}
+                    >
+                      {statusPieData.map((entry) => (
                         <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number, name: string) => [value, name]} />
+                    <Tooltip
+                      formatter={(value: number) => [
+                        String(value),
+                        String(value),
+                      ]}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -146,11 +164,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="space-y-3 self-center">
-              {[
-                { label: "Approved", value: stats.approved, color: statusColors.Approved },
-                { label: "Pending", value: stats.pending, color: statusColors.Pending },
-                { label: "Rejected", value: stats.rejected, color: statusColors.Rejected },
-              ].map((row) => {
+              {statusRows.map((row) => {
                 const percent = statusTotal > 0 ? Math.round((row.value / statusTotal) * 100) : 0;
                 return (
                   <div key={row.label} className="rounded-xl border bg-muted/20 p-3">
@@ -159,10 +173,13 @@ export default function AdminDashboard() {
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
                         {row.label}
                       </span>
-                      <span className="text-sm font-semibold tabular-nums">{row.value}</span>
+                      <span className="text-sm font-semibold tabular-nums">{percent}%</span>
                     </div>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full" style={{ width: `${percent}%`, backgroundColor: row.color }} />
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${percent}%`, backgroundColor: row.color }}
+                      />
                     </div>
                   </div>
                 );

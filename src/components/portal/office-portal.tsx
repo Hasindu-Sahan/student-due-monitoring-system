@@ -91,9 +91,12 @@ function scopeFromSession(session: PortalSession | null, fallbackScope: string):
     .toUpperCase();
 
   if (value.includes("WEL001") || value.includes("WELFARE")) return "Welfare";
-  if (value.includes("FAC001") || value.includes("FAS_OFFICE") || value.includes("FAS")) return "FAS_Office";
-  if (value.includes("FAC002") || value.includes("FOT_OFFICE") || value.includes("FOT")) return "FOT_Office";
-  if (value.includes("FAC003") || value.includes("FBSF_OFFICE") || value.includes("FBSF")) return "FBSF_Office";
+  if (value.includes("FAC001") || value.includes("FAS_OFFICE") || value.includes("FAS"))
+    return "FAS_Office";
+  if (value.includes("FAC002") || value.includes("FOT_OFFICE") || value.includes("FOT"))
+    return "FOT_Office";
+  if (value.includes("FAC003") || value.includes("FBSF_OFFICE") || value.includes("FBSF"))
+    return "FBSF_Office";
 
   return fallbackScope;
 }
@@ -201,7 +204,9 @@ export function OfficeDashboardPage({
         const text = filters.studentSearch.toLowerCase();
         const matchesStudent =
           !text || p.sid.toLowerCase().includes(text) || p.name.toLowerCase().includes(text);
-        return matchesFeeType && matchesCategory && matchesFaculty && matchesLevel && matchesStudent;
+        return (
+          matchesFeeType && matchesCategory && matchesFaculty && matchesLevel && matchesStudent
+        );
       }),
     [filters, payments],
   );
@@ -211,17 +216,54 @@ export function OfficeDashboardPage({
   const rejected = statusCount(filtered, "Rejected");
   const total = approved + pending + rejected;
 
-  const chartData = STATUSES.map((status) => ({
-    name: status,
-    value: statusCount(filtered, status),
-    color: STATUS_COLORS[status],
-  }));
+  // receiversCount comes from fee management receiver assignment
+  const [receiversCount, setReceiversCount] = useState<number>(0);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("belongsTo", String(scope));
+    if (filters.feeType) params.set("feeType", filters.feeType);
+    if (filters.category) params.set("category", filters.category);
+    if (filters.faculty) params.set("faculty", filters.faculty);
+    if (filters.level) params.set("level", filters.level);
+    if (filters.studentSearch) params.set("studentSearch", filters.studentSearch);
+
+    fetch(`/api/admin/receivers-count?${params.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setReceiversCount(typeof data?.totalReceivers === "number" ? data.totalReceivers : 0);
+      })
+      .catch(() => setReceiversCount(0));
+  }, [
+    scope,
+    filters.feeType,
+    filters.category,
+    filters.faculty,
+    filters.level,
+    filters.studentSearch,
+  ]);
+
+  const notPaidCount = Math.max(0, receiversCount - approved);
+
+  const chartData = [
+    { name: "Approved", value: approved, color: STATUS_COLORS.Approved },
+    { name: "Pending", value: pending, color: STATUS_COLORS.Pending },
+    { name: "Rejected", value: rejected, color: STATUS_COLORS.Rejected },
+  ];
+
+  const paidNotPaidTotal = approved + notPaidCount;
+  const paidNotPaidChartData = [
+    { name: "Paid", value: approved, color: STATUS_COLORS.Approved },
+    {
+      name: "Not Paid",
+      value: notPaidCount,
+      color: STATUS_COLORS.Pending,
+    },
+  ];
 
   const studentStatusData = STATUSES.map((status) => ({
     name: status,
-    value: new Set(
-      filtered.filter((p) => p.status === status).map((p) => p.sid),
-    ).size,
+    value: new Set(filtered.filter((p) => p.status === status).map((p) => p.sid)).size,
     color: STATUS_COLORS[status],
   }));
 
@@ -312,11 +354,25 @@ export function OfficeDashboardPage({
         </div>
       </div>
 
-      {/* ── Summary cards ──────────────────────────────────────────────── */}
+      {/* ── Admin Approval Status ───────────────────────────────────────── */}
+      <div className="mb-2 flex items-end justify-between gap-4">
+        <h2 className="text-base font-semibold">Admin Approval Status</h2>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryCard label="Approved" value={String(approved)} tone="success" icon={CheckCircle2} />
         <SummaryCard label="Pending" value={String(pending)} tone="warning" icon={Clock} />
         <SummaryCard label="Rejected" value={String(rejected)} tone="destructive" icon={XCircle} />
+      </div>
+
+      <hr className="my-6 border-muted" />
+
+      {/* ── Payment Status ─────────────────────────────────────────────── */}
+      <div className="mb-2 flex items-end justify-between gap-4">
+        <h2 className="text-base font-semibold">Payment Status</h2>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+        <SummaryCard label="Paid" value={String(approved)} tone="success" icon={CheckCircle2} />
+        <SummaryCard label="Not Paid" value={String(notPaidCount)} tone="warning" icon={Clock} />
       </div>
 
       {/* ── Charts ─────────────────────────────────────────────────────── */}
@@ -325,10 +381,8 @@ export function OfficeDashboardPage({
         <div className="rounded-2xl border bg-card p-6 shadow-card">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold">Payment Status Distribution</h2>
-              <p className="text-xs text-muted-foreground">
-                {meta.label} — Approved vs Pending vs Rejected
-              </p>
+              <h2 className="text-base font-semibold">Approval Status Distribution</h2>
+              <p className="text-xs text-muted-foreground">Approved / Pending / Rejected</p>
             </div>
             <PieIcon className="h-5 w-5 text-muted-foreground" />
           </div>
@@ -342,99 +396,162 @@ export function OfficeDashboardPage({
               No payment data available for {meta.label}
             </div>
           ) : (
-            <div className="mt-5 h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={({ name, value }) =>
-                      `${name}: ${total ? Math.round((Number(value) / total) * 100) : 0}%`
-                    }
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    iconType="circle"
-                    wrapperStyle={{ fontSize: "12px" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="mt-5 grid min-h-[300px] grid-cols-[220px_minmax(0,1fr)] gap-6">
+              <div className="relative h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      label={() => ""}
+                    >
+                      {chartData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: any, name: any) => [String(value), String(name)]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-2xl font-semibold tabular-nums">{total}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 self-center">
+                {[
+                  { label: "Approved", value: approved, color: STATUS_COLORS.Approved },
+                  { label: "Pending", value: pending, color: STATUS_COLORS.Pending },
+                  { label: "Rejected", value: rejected, color: STATUS_COLORS.Rejected },
+                ].map((row) => {
+                  const percent = total > 0 ? Math.round((row.value / total) * 100) : 0;
+                  return (
+                    <div key={row.label} className="rounded-xl border bg-muted/20 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: row.color }}
+                          />
+                          {row.label}
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums">{percent}%</span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${percent}%`, backgroundColor: row.color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
-
-        {/* Bar — student counts by status */}
         <div className="rounded-2xl border bg-card p-6 shadow-card">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold">Student Counts by Status</h2>
-              <p className="text-xs text-muted-foreground">
-                {meta.label} — Number of students in each status
-              </p>
+              <h2 className="text-base font-semibold">Payment Status Distribution</h2>
+              <p className="text-xs text-muted-foreground">{meta.label} — Paid vs Not Paid</p>
             </div>
-            <BarChart3 className="h-5 w-5 text-muted-foreground" />
+            <PieIcon className="h-5 w-5 text-muted-foreground" />
           </div>
 
           {loading ? (
             <div className="mt-10 flex h-[300px] items-center justify-center text-xs text-muted-foreground">
               Loading chart…
             </div>
-          ) : total === 0 ? (
+          ) : paidNotPaidTotal === 0 ? (
             <div className="mt-10 flex h-[300px] items-center justify-center text-xs text-muted-foreground">
               No payment data available for {meta.label}
             </div>
           ) : (
-            <div className="mt-5 h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={studentStatusData}
-                  margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                    stroke="hsl(var(--border))"
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
-                    stroke="hsl(var(--border))"
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    cursor={{ fill: "hsl(var(--muted))" }}
-                  />
-                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                    {studentStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="mt-5 grid min-h-[300px] grid-cols-[220px_minmax(0,1fr)] gap-6">
+              <div className="relative h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={paidNotPaidChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      label={() => ""}
+                    >
+                      {paidNotPaidChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-2xl font-semibold tabular-nums">{paidNotPaidTotal}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 self-center">
+                {[
+                  { label: "Paid", value: approved, color: STATUS_COLORS.Approved },
+                  {
+                    label: "Not Paid",
+                    value: notPaidCount,
+                    color: STATUS_COLORS.Pending,
+                  },
+                ].map((row) => {
+                  const percent =
+                    paidNotPaidTotal > 0 ? Math.round((row.value / paidNotPaidTotal) * 100) : 0;
+                  return (
+                    <div key={row.label} className="rounded-xl border bg-muted/20 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-2 text-sm font-medium">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: row.color }}
+                          />
+                          {row.label}
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums">{percent}%</span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${percent}%`, backgroundColor: row.color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

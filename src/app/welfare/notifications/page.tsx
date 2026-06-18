@@ -1,6 +1,6 @@
-export { default } from "../admin/notifications/page";
+import { OfficeNotificationsPage } from "@/components/portal/office-notifications";
 
-
-
-
+export default function WelfareNotificationsRoute() {
+  return <OfficeNotificationsPage defaultScope="Welfare" />;
+}
 
