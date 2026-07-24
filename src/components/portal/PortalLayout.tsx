@@ -46,6 +46,11 @@ const facultyNav: NavItem[] = [
   { to: "/faculty/account", label: "Profile", icon: UserCircle2 },
 ];
 
+function getPortalBasePath(role: "student" | "admin" | "faculty", basePath?: string) {
+  if (role !== "faculty") return null;
+  return basePath?.replace(/\/$/, "") || "/faculty";
+}
+
 export function PortalLayout({
   role,
   user,
@@ -61,13 +66,16 @@ export function PortalLayout({
   children: React.ReactNode;
   facultyBasePath?: string;
 }) {
+  const portalBasePath = getPortalBasePath(role, facultyBasePath);
   const nav =
     role === "student"
       ? studentNav
       : role === "faculty"
         ? facultyNav.map((item) => ({
             ...item,
-            to: item.to.startsWith("/faculty") ? item.to.replace("/faculty", facultyBasePath) : item.to,
+            to: portalBasePath && item.to.startsWith("/faculty")
+              ? item.to.replace("/faculty", portalBasePath)
+              : item.to,
           }))
         : adminNav;
   const pathname = usePathname();
@@ -75,6 +83,7 @@ export function PortalLayout({
   const isWelfarePortal =
     role === "faculty" &&
     [user.name, user.sub, user.initials].some((value) => value.toLowerCase().includes("welfare"));
+  const activeBasePath = portalBasePath ?? "/faculty";
 
   useEffect(() => {
     const loadUnread = () => {
@@ -128,7 +137,7 @@ export function PortalLayout({
           {nav.map((item) => {
             const isDashboardItem = item.label.toLowerCase() === "dashboard";
             const active = isDashboardItem
-              ? pathname === item.to
+              ? pathname === item.to || (role === "faculty" && pathname === activeBasePath)
               : item.to === `/${role}`
                 ? pathname === item.to
                 : pathname.startsWith(item.to);
