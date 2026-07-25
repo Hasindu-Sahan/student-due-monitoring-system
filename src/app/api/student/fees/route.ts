@@ -33,8 +33,6 @@ export async function GET(req: NextRequest) {
     // Level-based filtering is handled by which StudentFee rows exist for the student's level.
     const now = new Date();
 
-    // Auto-mark overdue items when their due date passes.
-    // This keeps the student dashboard "Total Overdue Amount" in sync without waiting for manual status updates.
     await prisma.studentFee.updateMany({
       where: {
         studentId: student.studentId,

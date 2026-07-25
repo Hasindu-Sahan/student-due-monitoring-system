@@ -120,19 +120,18 @@ export default function LoginPage() {
 
                   // Route the user to the correct portal based on the
                   // portal role returned by the server (student / admin / faculty).
+                  const profileId = String(data.profileId ?? "").toUpperCase();
                   const nextRoute =
                     data.role === "student"
                       ? "/student"
                       : data.role === "faculty"
-                        ? // Welfare is a separate portal section
-                          data.profileId === "WEL001" ||
-                            String(data.profileId ?? "").toUpperCase().includes("WEL")
-                          ? "/welfare"
-                          : data.profileId === "FAC001"
+                        ? profileId.includes("WEL001") || profileId.includes("WEL")
+                          ? "/welfare/dashboard"
+                          : profileId.includes("FAC001") || profileId.includes("FAS")
                             ? "/faculty/FAS_Office"
-                            : data.profileId === "FAC002"
+                            : profileId.includes("FAC002") || profileId.includes("FOT")
                               ? "/faculty/FOT_Office"
-                              : data.profileId === "FAC003"
+                              : profileId.includes("FAC003") || profileId.includes("FBSF")
                                 ? "/faculty/FBSF_Office"
                                 : "/faculty/FAS_Office"
                         : "/admin";

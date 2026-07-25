@@ -73,9 +73,10 @@ export function PortalLayout({
       : role === "faculty"
         ? facultyNav.map((item) => ({
             ...item,
-            to: portalBasePath && item.to.startsWith("/faculty")
-              ? item.to.replace("/faculty", portalBasePath)
-              : item.to,
+            to:
+              portalBasePath && item.to.startsWith("/faculty")
+                ? item.to.replace("/faculty", portalBasePath)
+                : item.to,
           }))
         : adminNav;
   const pathname = usePathname();

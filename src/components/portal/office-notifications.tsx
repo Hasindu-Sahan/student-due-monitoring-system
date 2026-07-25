@@ -14,9 +14,11 @@ type Notification = {
 
 export function OfficeNotificationsPage({
   defaultScope,
+  role = "faculty",
   facultyBasePath = "/faculty",
 }: {
   defaultScope: string;
+  role?: "admin" | "faculty";
   facultyBasePath?: string;
 }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -37,7 +39,7 @@ export function OfficeNotificationsPage({
 
   return (
     <PortalLayout
-      role="faculty"
+      role={role}
       facultyBasePath={facultyBasePath}
       user={{ name: defaultScope, sub: `${defaultScope} Portal`, initials: defaultScope.slice(0, 3).toUpperCase() }}
       title="Notifications"
