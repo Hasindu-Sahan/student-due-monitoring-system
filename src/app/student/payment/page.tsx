@@ -31,6 +31,14 @@ function isFeesData(value: unknown): value is Data {
   return Boolean(value && typeof value === "object" && Array.isArray((value as Data).fees));
 }
 
+function getStudentPaymentStatus(fee: Fee) {
+  if (fee.status === "Overdue" && fee.approval === "Approved" && fee.bankSlipUrl) {
+    return { label: "Late Paid", className: "text-destructive font-medium" };
+  }
+
+  return { label: fee.status, className: "" };
+}
+
 export default function StudentPayment() {
   const [data, setData] = useState<Data>(emptyData);
   const [student, setStudent] = useState<StudentProfile>(defaultStudent);
@@ -185,7 +193,16 @@ export default function StudentPayment() {
                   <td className="px-6 py-4"><span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{f.category}</span></td>
                   <td className="px-6 py-4 text-muted-foreground">{f.due}</td>
                   <td className="px-6 py-4 font-semibold tabular-nums">{lkr(f.amount)}</td>
-                  <td className="px-6 py-4"><StatusBadge status={f.status} /></td>
+                  <td className="px-6 py-4">
+                    {(() => {
+                      const status = getStudentPaymentStatus(f);
+                      return status.label === "Late Paid" ? (
+                        <span className={status.className}>{status.label}</span>
+                      ) : (
+                        <StatusBadge status={status.label} />
+                      );
+                    })()}
+                  </td>
                   <td className="px-6 py-4">
                     <button
                       disabled={f.status === "Paid" && !f.bankSlipUrl}
