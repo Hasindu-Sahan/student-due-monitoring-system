@@ -31,9 +31,52 @@ function filterLabel(filters: Record<string, string>, fileType?: string) {
   return `${fileType ? `${fileType.toUpperCase()} report` : "Report"}${parts.length ? ` (${parts.join(", ")})` : ""}`;
 }
 
+async function resolveAdminUserId(input?: { userId?: unknown; username?: unknown; profileId?: unknown }) {
+  const userId = Number(input?.userId);
+  if (Number.isInteger(userId) && userId > 0) {
+    const user = await prisma.user.findUnique({
+      where: { userId },
+      include: { admin: true },
+    });
+    if (user?.admin) return user.userId;
+  }
+
+  const username = String(input?.username ?? input?.profileId ?? "").trim();
+  if (!username) return null;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ username }, { email: username }],
+    },
+    include: { admin: true },
+  });
+
+  if (user?.admin) return user.userId;
+
+  const admin = await prisma.admin.findFirst({
+    where: {
+      OR: [
+        { employeeId: username },
+        { user: { username } },
+        { user: { email: username } },
+      ],
+    },
+    include: { user: true },
+  });
+
+  if (admin?.userId) return admin.userId;
+
+  const defaultAdmin = await prisma.admin.findFirst({
+    where: { employeeId: "A001" },
+    select: { userId: true },
+  });
+
+  return defaultAdmin?.userId ?? null;
+}
+
 export async function GET() {
   try {
-  const [feeTypes, feeCategories, students, reportLogs] = await Promise.all([
+    const [feeTypes, feeCategories, students, reportLogs] = await Promise.all([
       prisma.feeType.findMany({
         select: { feeName: true },
         orderBy: { feeName: "asc" },
@@ -63,12 +106,13 @@ export async function GET() {
 
     const reports = reportLogs.map((log) => {
       const admin = log.user.admin;
+      const generatedBy = admin?.employeeId ?? "A001";
 
       const currentState = (log as any).currentState as { fileType?: string; filters?: Record<string, string> } | null;
       return {
         id: log.logId,
         date: log.timestamp.toISOString().split("T")[0],
-        by: admin?.employeeId ?? log.user.username,
+        by: generatedBy,
         filter: log.action ?? "Report generated",
         fileType: currentState?.fileType ?? "report",
         filters: currentState?.filters ?? {},
@@ -89,7 +133,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { filters = {}, fileType = "pdf", userId } = await req.json();
+    const { filters = {}, fileType = "pdf", userId, username, profileId } = await req.json();
+    const resolvedUserId = await resolveAdminUserId({ userId, username, profileId }) ?? (await prisma.admin.findFirst({
+      where: { employeeId: "A001" },
+      select: { userId: true },
+    }))?.userId ?? null;
 
     const studentFees = await prisma.studentFee.findMany({
       include: {
@@ -138,13 +186,13 @@ export async function POST(req: NextRequest) {
 
     const action = filterLabel(filters, fileType);
     await writeAuditLog({
-      userId,
+      userId: resolvedUserId,
       action,
       tableName: "reports",
       currentState: { filters, fileType, rowCount: rows.length },
     });
 
-    return NextResponse.json({ rows, fileType, filter: action });
+    return NextResponse.json({ rows, fileType, filter: action, generatedBy: "A001" });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to generate report" }, { status: 500 });

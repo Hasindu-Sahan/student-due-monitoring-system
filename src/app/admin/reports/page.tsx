@@ -38,6 +38,7 @@ type ReportsFilters = {
 export default function Reports() {
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [data, setData] = useState<ReportsData>({ feeTypes: [], feeCategories: [], faculties: [], reports: [] });
+  const [reportPage, setReportPage] = useState(0);
   const [filters, setFilters] = useState<ReportsFilters>({
     startDate: "",
     endDate: "",
@@ -49,12 +50,16 @@ export default function Reports() {
     paymentStatus: "All",
   });
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
+  const [sessionUsername, setSessionUsername] = useState("");
+  const [sessionProfileId, setSessionProfileId] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     setSessionUserId(session?.userId ?? null);
+    setSessionUsername(session?.username ?? "");
+    setSessionProfileId(session?.profileId ?? "");
 
     const params = new URLSearchParams();
     if (session?.userId) params.set("userId", String(session.userId));
@@ -66,7 +71,10 @@ export default function Reports() {
       fetch("/api/admin/reports").then((r) => r.json()),
     ]).then(([adminData, reportsData]) => {
       if (!adminData.error) setAdmin(adminData);
-      if (!reportsData.error) setData(reportsData);
+      if (!reportsData.error) {
+        setData(reportsData);
+        setReportPage(0);
+      }
       setLoading(false);
     });
   }, []);
@@ -75,8 +83,15 @@ export default function Reports() {
 
   const reloadReports = async () => {
     const reportsData = await fetch("/api/admin/reports").then((r) => r.json());
-    if (!reportsData.error) setData(reportsData);
+    if (!reportsData.error) {
+      setData(reportsData);
+      setReportPage(0);
+    }
   };
+
+  const reportsPerPage = 6;
+  const reportPageCount = Math.max(1, Math.ceil(data.reports.length / reportsPerPage));
+  const visibleReports = data.reports.slice(reportPage * reportsPerPage, (reportPage + 1) * reportsPerPage);
 
   const saveReport = (report: { rows: Array<Record<string, string | number>>; filter: string }, fileType: "pdf" | "excel") => {
     if (fileType === "excel") {
@@ -122,14 +137,20 @@ export default function Reports() {
     const res = await fetch("/api/admin/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filters: reportFilters, fileType, userId: sessionUserId }),
+      body: JSON.stringify({
+        filters: reportFilters,
+        fileType,
+        userId: sessionUserId,
+        username: sessionUsername,
+        profileId: sessionProfileId,
+      }),
     });
 
     const report = await res.json();
     if (report.error) return;
 
     saveReport(report, fileType);
-    reloadReports();
+    await reloadReports();
   };
 
   const resetFilters = () =>
@@ -289,7 +310,7 @@ export default function Reports() {
                   </td>
                 </tr>
               ) : (
-                data.reports.map((r) => (
+                visibleReports.map((r) => (
                   <tr key={r.id} className="border-b last:border-0 transition hover:bg-muted/30">
                     <td className="px-6 py-4 text-muted-foreground">{r.date}</td>
                     <td className="px-6 py-4 font-medium">{r.by}</td>
@@ -309,6 +330,31 @@ export default function Reports() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t px-6 py-4">
+          <p className="text-xs text-muted-foreground">
+            Showing {data.reports.length === 0 ? 0 : reportPage * reportsPerPage + 1}
+            {" "}
+            to {Math.min((reportPage + 1) * reportsPerPage, data.reports.length)} of {data.reports.length}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setReportPage((current) => Math.max(0, current - 1))}
+              disabled={reportPage === 0}
+              className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setReportPage((current) => Math.min(reportPageCount - 1, current + 1))}
+              disabled={reportPage >= reportPageCount - 1}
+              className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </PortalLayout>
