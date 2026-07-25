@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { ArrowUpDown, ChevronLeft, ChevronRight, Download, Eye } from "lucide-react";
 
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { StatusBadge } from "@/components/portal/StatusBadge";
@@ -75,6 +75,19 @@ function portalMeta(scope?: string | null) {
     label: nextScope,
     initials: nextScope.slice(0, 2).toUpperCase(),
   };
+}
+
+function csvCell(value: string | number | null | undefined) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 export function OfficePaymentsPage({
@@ -170,6 +183,111 @@ export function OfficePaymentsPage({
     setPage(1);
   }, [filters]);
 
+  const exportFilenameBase = `${portalName.toLowerCase().replaceAll(" ", "-")}-payments`;
+
+  const exportCsv = () => {
+    const header = ["Date", "Student ID", "Student Name", "Fee Type", "Category", "Faculty", "Level", "Amount", "Status"];
+    const rows = filtered.map((payment) => [
+      payment.date,
+      payment.sid,
+      payment.name,
+      payment.feeType,
+      payment.category,
+      payment.faculty,
+      payment.level ?? "",
+      payment.amount,
+      payment.status,
+    ]);
+
+    const csv = [header, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\n");
+
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${exportFilenameBase}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const rowsHtml = filtered
+      .map(
+        (payment) => `
+          <tr>
+            <td>${escapeHtml(payment.date)}</td>
+            <td>${escapeHtml(payment.sid)}</td>
+            <td>${escapeHtml(payment.name)}</td>
+            <td>${escapeHtml(payment.feeType)}</td>
+            <td>${escapeHtml(payment.category)}</td>
+            <td>${escapeHtml(payment.faculty)}</td>
+            <td>${escapeHtml(payment.level ?? "")}</td>
+            <td>${escapeHtml(lkr(payment.amount))}</td>
+            <td>${escapeHtml(payment.status)}</td>
+          </tr>`,
+      )
+      .join("");
+
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <title>${escapeHtml(`${portalName} Payments`)}</title>
+          <style>
+            @page { size: landscape; margin: 12mm; }
+            body { font-family: Arial, sans-serif; color: #111827; }
+            h1 { margin: 0 0 4px; font-size: 20px; }
+            p { margin: 0 0 16px; color: #4b5563; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; vertical-align: top; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          <h1>${escapeHtml(`${portalName} Payments`)}</h1>
+          <p>Filtered export generated on ${escapeHtml(new Date().toLocaleString())}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Student ID</th>
+                <th>Student Name</th>
+                <th>Fee Type</th>
+                <th>Category</th>
+                <th>Faculty</th>
+                <th>Level</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <script>
+            window.onload = function () {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>`;
+
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const printWindow = window.open(url, "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const cleanup = () => URL.revokeObjectURL(url);
+    printWindow.addEventListener("load", () => {
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        cleanup();
+      }, 250);
+    });
+  };
+
   return (
     <PortalLayout
       role="faculty"
@@ -183,6 +301,26 @@ export function OfficePaymentsPage({
           <div>
             <h2 className="text-base font-semibold">Recent Payments</h2>
             <p className="text-xs text-muted-foreground">All submissions</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={filtered.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              CSV
+            </button>
+            <button
+              type="button"
+              onClick={exportPdf}
+              disabled={filtered.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-3.5 w-3.5" />
+              PDF
+            </button>
           </div>
           <div className={`grid w-full grid-cols-1 gap-2 sm:grid-cols-2 ${portalName === "Welfare" ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
             <input
