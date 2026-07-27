@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
@@ -63,7 +61,7 @@ export default function StudentDashboard() {
       role="student"
       user={{ name, sub: student.id, initials }}
       title={`Welcome back, ${student.firstName}`}
-      subtitle={`${student.faculty} · ${student.level ? `Level ${student.level}` : ""}`}
+      subtitle={`${student.faculty} Â· ${student.level ? `Level ${student.level}` : ""}`}
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryCard label="Total Remaining Dues" value={lkr(data.totalDues)} tone="primary" icon={CircleDollarSign} />

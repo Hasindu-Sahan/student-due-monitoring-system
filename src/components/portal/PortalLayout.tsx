@@ -179,7 +179,6 @@ export function PortalLayout({
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header */}
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-card/80 px-6 backdrop-blur">
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>

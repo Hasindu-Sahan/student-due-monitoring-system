@@ -45,31 +45,31 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-slate-950/60" />
 
       <div className="relative flex min-h-screen items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md rounded-3xl border border-white/15 bg-white/88 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
+        <div className="glass-panel w-full max-w-md rounded-3xl p-8 text-white sm:p-10">
           <div className="mb-10 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-soft">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-white shadow-soft ring-1 ring-white/20">
               <GraduationCap className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-900">UniFee</p>
-              <p className="text-xs text-slate-600">University Fee Management</p>
+              <p className="text-sm font-semibold text-white">UniFee</p>
+              <p className="text-xs text-white/70">University Fee Management</p>
             </div>
           </div>
 
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Welcome back</h1>
+          <p className="mt-2 text-sm text-white/70">
             Sign in to the University Fee Management System
           </p>
 
-          <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white/80 p-1.5 shadow-sm">
+          <div className="mt-8 grid grid-cols-2 gap-2 rounded-2xl border border-white/15 bg-white/10 p-1.5 shadow-sm backdrop-blur-md">
             {(["student", "admin"] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
                 className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium capitalize transition ${
                   role === r
-                    ? "bg-primary text-primary-foreground shadow-soft"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-white text-slate-950 shadow-soft"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 {r === "student" ? <BookOpen className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
@@ -145,11 +145,11 @@ export default function LoginPage() {
             }}
           >
             <div>
-              <label htmlFor="username" className="mb-1.5 block text-sm font-medium text-slate-800">
+              <label htmlFor="username" className="mb-1.5 block text-sm font-medium text-white/85">
                 Username
               </label>
               <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55" />
                 <input
                   id="username"
                   type="text"
@@ -160,7 +160,7 @@ export default function LoginPage() {
                   }}
                   aria-invalid={!!usernameError}
                   aria-describedby={usernameError ? "username-error" : undefined}
-                  className={`h-11 w-full rounded-xl border border-slate-200 bg-white/90 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10 ${
+                  className={`h-11 w-full rounded-xl border border-white/15 bg-white/12 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-white/35 focus:ring-4 focus:ring-white/10 ${
                     usernameError ? "border-destructive/40" : ""
                   }`}
                 />
@@ -174,14 +174,14 @@ export default function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-800">
+                <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-white/85">
                   Password
                 </label>
 
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
-                  className="text-sm font-medium text-primary hover:underline"
+                  className="text-sm font-medium text-white hover:underline"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? "Hide" : "Show"}
@@ -189,7 +189,7 @@ export default function LoginPage() {
               </div>
 
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55" />
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -200,7 +200,7 @@ export default function LoginPage() {
                   }}
                   aria-invalid={!!passwordError}
                   aria-describedby={passwordError ? "password-error" : undefined}
-                  className={`h-11 w-full rounded-xl border border-slate-200 bg-white/90 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10 ${
+                  className={`h-11 w-full rounded-xl border border-white/15 bg-white/12 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-white/45 focus:border-white/35 focus:ring-4 focus:ring-white/10 ${
                     passwordError ? "border-destructive/40" : ""
                   }`}
                 />
@@ -213,7 +213,7 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-slate-600">
+              <label className="flex items-center gap-2 text-sm text-white/70">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -222,7 +222,7 @@ export default function LoginPage() {
                 />
                 Remember me
               </label>
-              <a href="#" className="text-sm font-medium text-primary hover:underline">
+              <a href="#" className="text-sm font-medium text-white hover:underline">
                 Forgot password?
               </a>
             </div>
@@ -240,14 +240,14 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={signingIn || !username.trim() || !password}
-              className="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90 disabled:opacity-60"
+              className="h-11 w-full rounded-xl bg-white text-sm font-semibold text-slate-950 shadow-soft transition hover:bg-white/90 disabled:opacity-60"
             >
               {signingIn ? "Signing in..." : `Sign in as ${role}`}
             </button>
 
-            <p className="pt-2 text-center text-xs text-slate-600">
+            <p className="pt-2 text-center text-xs text-white/65">
               Need help? Contact the Bursar&apos;s Office at{" "}
-              <span className="text-slate-900">finance@university.lk</span>
+              <span className="text-white">finance@university.lk</span>
             </p>
           </form>
         </div>
