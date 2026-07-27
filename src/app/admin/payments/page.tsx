@@ -20,6 +20,15 @@ type PaymentFilterOptions = {
 
 const paymentsPerPage = 5;
 
+const emptyStats: Stats = {
+  totalRemainingDues: 0,
+  totalPendingDues: 0,
+  totalOverdue: 0,
+  approved: 0,
+  pending: 0,
+  rejected: 0,
+};
+
 
 export default function AdminPayments() {
   // Office-specific routing based on logged-in admin's username.
@@ -49,7 +58,7 @@ export default function AdminPayments() {
 
 
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState<Stats>(emptyStats);
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [filters, setFilters] = useState({
     feeType: "",
@@ -87,10 +96,24 @@ export default function AdminPayments() {
       fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
       fetch("/api/admin/payments-options").then((r) => r.json()),
     ]).then(([p, s, a, opts]) => {
-      setPayments(p);
-      setStats(s);
-      if (!a.error) setAdmin(a);
-      if (opts && !opts.error) setFilterOptions(opts);
+      setPayments(Array.isArray(p) ? p : []);
+      setStats(s && typeof s === "object" && !Array.isArray(s) ? { ...emptyStats, ...s } : emptyStats);
+      if (a && typeof a === "object" && !Array.isArray(a) && !a.error) setAdmin(a);
+      if (
+        opts &&
+        typeof opts === "object" &&
+        !Array.isArray(opts) &&
+        Array.isArray(opts.feeTypes) &&
+        Array.isArray(opts.categories) &&
+        Array.isArray(opts.faculties) &&
+        Array.isArray(opts.levels)
+      ) {
+        setFilterOptions(opts);
+      }
+      setLoading(false);
+    }).catch(() => {
+      setPayments([]);
+      setStats(emptyStats);
       setLoading(false);
     });
   }, []);
