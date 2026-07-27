@@ -132,12 +132,12 @@ export default function LoginPage() {
                         ? isWelfare
                           ? "/welfare"
                           : isFas
-                            ? "/admin/FAS_Office"
+                            ? "/faculty/FAS_Office"
                             : isFot
-                              ? "/admin/FOT_Office"
+                              ? "/faculty/FOT_Office"
                               : isFbsf
-                                ? "/admin/FBSF_Office"
-                                : "/admin"
+                                ? "/faculty/FBSF_Office"
+                                : "/faculty"
                         : "/admin";
                   router.push(nextRoute);
                 } catch (err) {
