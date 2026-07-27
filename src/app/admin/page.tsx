@@ -10,6 +10,16 @@ import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
 type Stats = { totalPaid: number; totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 
+const emptyStats: Stats = {
+  totalPaid: 0,
+  totalRemainingDues: 0,
+  totalPendingDues: 0,
+  totalOverdue: 0,
+  approved: 0,
+  pending: 0,
+  rejected: 0,
+};
+
 const statusColors = {
   Approved: "#16a34a",
   Pending: "#f59e0b",
@@ -24,7 +34,7 @@ const dueColors = {
 };
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<Stats>({ totalPaid: 0, totalRemainingDues: 0, totalPendingDues: 0, totalOverdue: 0, approved: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState<Stats>(emptyStats);
 
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [loading, setLoading] = useState(true);
@@ -52,8 +62,24 @@ export default function AdminDashboard() {
       fetch(`/api/admin/stats${statsParams.toString() ? `?${statsParams.toString()}` : ""}`).then(r => r.json()),
       fetch(`/api/admin/account${accountQuery}`).then(r => r.json()),
     ]).then(([, s, a]) => {
-      setStats(s);
-      if (!a.error) setAdmin(a);
+      if (s && typeof s === "object" && !Array.isArray(s) && !s.error) {
+        setStats({
+          totalPaid: Number(s.totalPaid) || 0,
+          totalRemainingDues: Number(s.totalRemainingDues ?? s.totalDues) || 0,
+          totalPendingDues: Number(s.totalPendingDues) || 0,
+          totalOverdue: Number(s.totalOverdue) || 0,
+          approved: Number(s.approved) || 0,
+          pending: Number(s.pending) || 0,
+          rejected: Number(s.rejected) || 0,
+        });
+      } else {
+        setStats(emptyStats);
+      }
+
+      if (a && typeof a === "object" && !Array.isArray(a) && !a.error) setAdmin(a);
+      setLoading(false);
+    }).catch(() => {
+      setStats(emptyStats);
       setLoading(false);
     });
 
