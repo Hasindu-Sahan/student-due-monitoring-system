@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  ChevronDown,
   LogOut,
   LayoutDashboard,
   UserCircle2,
@@ -199,7 +198,6 @@ export function PortalLayout({
                 <span className="block text-sm font-medium leading-tight">{user.name}</span>
                 <span className="block text-[11px] text-muted-foreground">{user.sub}</span>
               </span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
         </header>
