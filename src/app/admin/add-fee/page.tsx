@@ -237,8 +237,8 @@ export default function AddFeePage() {
       title="Add Fee"
       subtitle="Create and assign a new student due"
     >
-      <form noValidate onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-<section className="rounded-2xl border bg-card p-6 shadow-card flex flex-col text-center justify-center">
+      <form noValidate onSubmit={handleSubmit} className="grid gap-6">
+        <section className="mx-auto flex w-full max-w-5xl flex-col rounded-2xl border bg-card p-6 shadow-card">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold">Fee Details</h2>
