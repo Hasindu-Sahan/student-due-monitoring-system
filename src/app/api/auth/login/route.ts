@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     const portalRole: "student" | "admin" | "faculty" =
       user.role === "Student" ? "student" : user.role === "Staff" ? "faculty" : "admin";
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       userId: user.userId,
       username: user.username,
       email: user.email,
@@ -82,6 +82,30 @@ export async function POST(req: NextRequest) {
         ? `${user.student?.firstName ?? ""} ${user.student?.lastName ?? ""}`.trim()
         : `${user.admin?.firstName ?? ""} ${user.admin?.lastName ?? ""}`.trim(),
     });
+
+    response.cookies.set(
+      "portalUser",
+      JSON.stringify({
+        userId: user.userId,
+        username: user.username,
+        email: user.email,
+        role: portalRole,
+        dbRole: user.role,
+        designation: user.admin?.designation ?? null,
+        profileId: loginRole === "student" ? user.student?.studentId : user.admin?.employeeId,
+        name: loginRole === "student"
+          ? `${user.student?.firstName ?? ""} ${user.student?.lastName ?? ""}`.trim()
+          : `${user.admin?.firstName ?? ""} ${user.admin?.lastName ?? ""}`.trim(),
+      }),
+      {
+        httpOnly: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+      }
+    );
+
+    return response;
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to sign in" }, { status: 500 });

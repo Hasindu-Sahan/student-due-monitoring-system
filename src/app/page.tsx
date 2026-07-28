@@ -56,7 +56,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="text-3xl font-semibold tracking-tight text-white">Welcome back</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Welcome Back</h1>
           <p className="mt-2 text-sm text-white/70">
             Sign in to the University Fee Management System
           </p>
