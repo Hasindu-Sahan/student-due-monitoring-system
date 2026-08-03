@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import type { ElementType } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import {
-  Pencil,
   KeyRound,
   UserCog,
   Mail,
@@ -154,12 +153,6 @@ export default function FacultyProfile() {
               </h2>
               <p className="text-sm text-muted-foreground">{faculty.designation}</p>
             </div>
-            <button
-              onClick={() => setMode("profile")}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:bg-primary/90"
-            >
-              <Pencil className="h-4 w-4" /> Edit Profile
-            </button>
           </div>
 
           {mode && (

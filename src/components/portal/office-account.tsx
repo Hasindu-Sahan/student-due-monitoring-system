@@ -2,16 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ElementType } from "react";
-import {
-  BadgeCheck,
-  Briefcase,
-  Hash,
-  KeyRound,
-  Mail,
-  Pencil,
-  Phone,
-  UserCog,
-} from "lucide-react";
+import { BadgeCheck, Briefcase, Hash, Mail, Phone, UserCog } from "lucide-react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 
 type OfficeProfile = {
@@ -53,23 +44,10 @@ export function OfficeAccountPage({
   facultyBasePath?: string;
 }) {
   const [faculty, setFaculty] = useState<OfficeProfile | null>(null);
-  const [mode, setMode] = useState<"profile" | "username" | "password" | null>(null);
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-    designation: "",
-    username: "",
-    password: "",
-  });
-  const [sessionUserId, setSessionUserId] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
 
     const params = new URLSearchParams();
     if (session?.userId) params.set("userId", String(session.userId));
@@ -81,14 +59,6 @@ export function OfficeAccountPage({
       .then((data) => {
         if (!data.error) {
           setFaculty(data);
-          setForm({
-            firstName: data.firstName ?? "",
-            lastName: data.lastName ?? "",
-            phone: data.phone ?? "",
-            designation: data.designation ?? "",
-            username: data.username ?? "",
-            password: "",
-          });
         }
       });
   }, []);
@@ -98,7 +68,11 @@ export function OfficeAccountPage({
       <PortalLayout
         role="faculty"
         facultyBasePath={facultyBasePath}
-        user={{ name: defaultScope, sub: `${defaultScope} Portal`, initials: defaultScope.slice(0, 3).toUpperCase() }}
+        user={{
+          name: defaultScope,
+          sub: `${defaultScope} Portal`,
+          initials: defaultScope.slice(0, 3).toUpperCase(),
+        }}
         title="Profile"
         subtitle={`Your ${defaultScope} profile`}
       >
@@ -108,44 +82,6 @@ export function OfficeAccountPage({
   }
 
   const initials = `${faculty.firstName?.[0] ?? "F"}${faculty.lastName?.[0] ?? ""}`;
-
-  const save = async () => {
-    setSaving(true);
-    setError("");
-
-    const body =
-      mode === "profile"
-        ? {
-            userId: sessionUserId,
-            firstName: form.firstName,
-            lastName: form.lastName,
-            phone: form.phone,
-            designation: form.designation,
-          }
-        : mode === "username"
-          ? { userId: sessionUserId, username: form.username }
-          : { userId: sessionUserId, password: form.password };
-
-    try {
-      const res = await fetch("/api/admin/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!data.error) {
-        setFaculty(data);
-        setMode(null);
-        setForm((prev) => ({ ...prev, password: "" }));
-      } else {
-        setError(data.error);
-      }
-    } catch {
-      setError("Failed to save. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <PortalLayout
@@ -171,88 +107,7 @@ export function OfficeAccountPage({
               </h2>
               <p className="text-sm text-muted-foreground">{faculty.designation}</p>
             </div>
-            <button
-              onClick={() => setMode("profile")}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:bg-primary/90"
-            >
-              <Pencil className="h-4 w-4" /> Edit Profile
-            </button>
           </div>
-
-          {mode && (
-            <div className="mt-6 rounded-xl border bg-muted/30 p-4">
-              {error && (
-                <p className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  {error}
-                </p>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2">
-                {mode === "profile" && (
-                  <>
-                    <input
-                      value={form.firstName}
-                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                      placeholder="First name"
-                      className="h-10 rounded-xl border bg-card px-3 text-sm outline-none focus:border-primary"
-                    />
-                    <input
-                      value={form.lastName}
-                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                      placeholder="Last name"
-                      className="h-10 rounded-xl border bg-card px-3 text-sm outline-none focus:border-primary"
-                    />
-                    <input
-                      value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                      placeholder="Phone"
-                      className="h-10 rounded-xl border bg-card px-3 text-sm outline-none focus:border-primary"
-                    />
-                    <input
-                      value={form.designation}
-                      onChange={(e) => setForm({ ...form, designation: e.target.value })}
-                      placeholder="Designation"
-                      className="h-10 rounded-xl border bg-card px-3 text-sm outline-none focus:border-primary"
-                    />
-                  </>
-                )}
-                {mode === "username" && (
-                  <input
-                    value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    placeholder="New username"
-                    className="h-10 rounded-xl border bg-card px-3 text-sm outline-none focus:border-primary sm:col-span-2"
-                  />
-                )}
-                {mode === "password" && (
-                  <input
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    type="password"
-                    placeholder="New password"
-                    className="h-10 rounded-xl border bg-card px-3 text-sm outline-none focus:border-primary sm:col-span-2"
-                  />
-                )}
-              </div>
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  onClick={() => {
-                    setMode(null);
-                    setError("");
-                  }}
-                  className="rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={save}
-                  disabled={saving}
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
-          )}
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <Field icon={Hash} label="Employee ID" value={faculty.id} />
@@ -272,36 +127,6 @@ export function OfficeAccountPage({
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl border bg-card p-6 shadow-card">
-            <h3 className="text-base font-semibold">Security</h3>
-            <div className="mt-5 space-y-3">
-              <button
-                onClick={() => setMode("username")}
-                className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium transition hover:border-primary hover:bg-primary-soft"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                    <UserCog className="h-4 w-4" />
-                  </span>
-                  Reset Username
-                </span>
-                <span className="text-xs text-muted-foreground">›</span>
-              </button>
-              <button
-                onClick={() => setMode("password")}
-                className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium transition hover:border-primary hover:bg-primary-soft"
-              >
-                <span className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                    <KeyRound className="h-4 w-4" />
-                  </span>
-                  Reset Password
-                </span>
-                <span className="text-xs text-muted-foreground">›</span>
-              </button>
-            </div>
-          </div>
-
           <div className="rounded-2xl border bg-card p-6 shadow-card">
             <h3 className="text-base font-semibold text-muted-foreground">Office</h3>
             <p className="mt-2 text-sm font-medium">{defaultScope.replace("_Office", "") || defaultScope}</p>
