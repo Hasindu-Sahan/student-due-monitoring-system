@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const notifications = await prisma.notification.findMany({
+      where: { notificationType: "Payment" },
       include: { student: true },
       orderBy: { sentDate: "desc" },
       take: 100,
@@ -30,16 +31,20 @@ export async function PATCH(req: NextRequest) {
 
     if (all) {
       await prisma.notification.updateMany({
-        where: { status: "Unread" },
+        where: { notificationType: "Payment", status: "Unread" },
         data: { status: "Read" },
       });
       return NextResponse.json({ success: true });
     }
 
-    await prisma.notification.update({
-      where: { notificationId },
+    const result = await prisma.notification.updateMany({
+      where: { notificationId, notificationType: "Payment" },
       data: { status: "Read" },
     });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Notification not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
