@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import { ArrowUpDown, Pencil, Save, Search, Trash2 } from "lucide-react";
 
 import { PortalLayout } from "@/components/portal/PortalLayout";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { lkr } from "@/lib/data";
 
 type Fee = {
@@ -79,6 +89,7 @@ export default function FeeManagement() {
   const [faculty, setFaculty] = useState("all");
   const [level, setLevel] = useState("all");
   const [studentId, setStudentId] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Fee | null>(null);
 
   const receiverIsSpecificStudent = receiverType === "specific_student";
 
@@ -236,7 +247,6 @@ export default function FeeManagement() {
   };
 
   const handleDelete = async (feeId: number) => {
-    if (!confirm("Delete this fee?")) return;
     await fetch("/api/admin/fees", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -539,7 +549,7 @@ export default function FeeManagement() {
                             <Pencil className="h-3.5 w-3.5" /> Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(fee.feeId)}
+                            onClick={() => setDeleteTarget(fee)}
                             className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive-soft"
                           >
                             <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -553,6 +563,30 @@ export default function FeeManagement() {
             </table>
           </div>
         </section>
+        <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this fee?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete {deleteTarget?.type ?? "this fee"}? This will remove the fee and its
+                related assignments. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (!deleteTarget) return;
+                  await handleDelete(deleteTarget.feeId);
+                  setDeleteTarget(null);
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </PortalLayout>
   );
