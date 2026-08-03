@@ -66,23 +66,38 @@ export async function PATCH(req: NextRequest) {
     const { paymentId, status, userId } = await req.json();
     const previous = await prisma.payment.findUnique({
       where: { paymentId },
-      include: { studentFee: true },
+      include: {
+        studentFee: {
+          include: {
+            student: true,
+            fee: true,
+          },
+        },
+      },
     });
+    if (!previous) {
+      return NextResponse.json({ error: "Payment not found" }, { status: 404 });
+    }
+
+    const nextStatus = status ?? "Pending";
     const updated = await prisma.payment.update({
       where: { paymentId },
-      data: { status, verifiedBy: userId ?? undefined },
+      data: {
+        status: nextStatus,
+        verifiedBy: nextStatus === "Pending" ? null : userId ?? undefined,
+      },
     });
 
-    if (previous?.studentFee) {
+    if (previous.studentFee) {
       const dueDate = previous.studentFee.feeId
         ? await prisma.fee.findUnique({
-            where: { feeId: previous.studentFee.feeId },
-            select: { dueDate: true },
-          })
+          where: { feeId: previous.studentFee.feeId },
+          select: { dueDate: true },
+        })
         : null;
       const fallbackStatus = dueDate?.dueDate && dueDate.dueDate < new Date() ? "Overdue" : "Pending";
 
-      const nextStudentFeeStatus = status === "Approved" ? "Paid" : fallbackStatus;
+      const nextStudentFeeStatus = nextStatus === "Approved" ? "Paid" : fallbackStatus;
 
       // Update student fee status based on payment verification result.
       await prisma.studentFee.update({
@@ -97,9 +112,11 @@ export async function PATCH(req: NextRequest) {
           notificationType: "PaymentStatus",
           status: "Unread",
           message:
-            status === "Approved"
+            nextStatus === "Approved"
               ? `Your payment has been approved for the assigned fee. You can now view it in your payments.`
-              : `Your payment has been rejected. Please check and submit again if required.`,
+              : nextStatus === "Rejected"
+                ? `Your payment has been rejected. Please check and submit again if required.`
+                : `The payment decision was reverted to pending review. Please wait for the admin's final decision.`,
         },
       });
     }

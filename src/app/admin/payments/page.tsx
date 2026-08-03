@@ -5,7 +5,7 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
-import { CircleDollarSign, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye } from "lucide-react";
+import { CircleDollarSign, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye, RotateCcw } from "lucide-react";
 
 type Payment = { paymentId: number; date: string; sid: string; name: string; feeType: string; category: string; faculty: string; level: number | null; amount: number; status: string; bankSlipUrl: string | null };
 type Stats = { totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
@@ -275,12 +275,20 @@ export default function AdminPayments() {
                   <td className="px-6 py-4"><StatusBadge status={p.status} variant="approval" /></td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => updateStatus(p.paymentId, "Approved")} className="inline-flex items-center gap-1 rounded-lg bg-success px-2.5 py-1.5 text-xs font-medium text-success-foreground transition hover:bg-success/90">
-                        <Check className="h-3.5 w-3.5" /> Approve
-                      </button>
-                      <button onClick={() => updateStatus(p.paymentId, "Rejected")} className="inline-flex items-center gap-1 rounded-lg bg-destructive px-2.5 py-1.5 text-xs font-medium text-destructive-foreground transition hover:bg-destructive/90">
-                        <X className="h-3.5 w-3.5" /> Reject
-                      </button>
+                      {p.status === "Pending" ? (
+                        <>
+                          <button onClick={() => updateStatus(p.paymentId, "Approved")} className="inline-flex items-center gap-1 rounded-lg bg-success px-2.5 py-1.5 text-xs font-medium text-success-foreground transition hover:bg-success/90">
+                            <Check className="h-3.5 w-3.5" /> Approve
+                          </button>
+                          <button onClick={() => updateStatus(p.paymentId, "Rejected")} className="inline-flex items-center gap-1 rounded-lg bg-destructive px-2.5 py-1.5 text-xs font-medium text-destructive-foreground transition hover:bg-destructive/90">
+                            <X className="h-3.5 w-3.5" /> Reject
+                          </button>
+                        </>
+                      ) : (
+                        <button onClick={() => updateStatus(p.paymentId, "Pending")} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-accent">
+                          <RotateCcw className="h-3.5 w-3.5" /> Undo
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -335,6 +343,11 @@ export default function AdminPayments() {
                     <X className="h-4 w-4" /> Reject
                   </button>
                 </>
+              )}
+              {viewSlip.status !== "Pending" && (
+                <button onClick={() => { updateStatus(viewSlip.paymentId, "Pending"); setViewSlip(null); }} className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition hover:bg-accent">
+                  <RotateCcw className="h-4 w-4" /> Undo
+                </button>
               )}
             </div>
           </div>
