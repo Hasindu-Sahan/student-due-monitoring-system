@@ -35,7 +35,7 @@ type ReportsFilters = {
   paymentStatus: string;
 };
 
-export default function Reports() {
+export function ReportsPage() {
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [data, setData] = useState<ReportsData>({ feeTypes: [], feeCategories: [], faculties: [], reports: [] });
   const [reportPage, setReportPage] = useState(0);
@@ -359,4 +359,8 @@ export default function Reports() {
       </div>
     </PortalLayout>
   );
+}
+
+export default function Reports() {
+  return <ReportsPage />;
 }

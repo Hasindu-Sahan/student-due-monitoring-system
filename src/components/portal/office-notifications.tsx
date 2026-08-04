@@ -12,6 +12,15 @@ type Notification = {
   createdAt?: string;
 };
 
+function scopeFromSession(session: any, fallbackScope: string) {
+  const value = [session?.username ?? "", session?.profileId ?? "", session?.designation ?? "", session?.dbRole ?? "", session?.role ?? ""].join(" ").toUpperCase();
+  if (value.includes("WEL001") || value.includes("WELFARE")) return "Welfare";
+  if (value.includes("FAC001") || value.includes("FAS_OFFICE") || value.includes("FAS")) return "FAS_Office";
+  if (value.includes("FAC002") || value.includes("FOT_OFFICE") || value.includes("FOT")) return "FOT_Office";
+  if (value.includes("FAC003") || value.includes("FBSF_OFFICE") || value.includes("FBSF")) return "FBSF_Office";
+  return fallbackScope;
+}
+
 export function OfficeNotificationsPage({
   defaultScope,
   role = "faculty",
@@ -25,7 +34,11 @@ export function OfficeNotificationsPage({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/notifications")
+    const stored = localStorage.getItem("portalUser");
+    const session = stored ? JSON.parse(stored) : null;
+    const resolvedScope = scopeFromSession(session, defaultScope);
+    const scopeQuery = resolvedScope ? `?belongsTo=${encodeURIComponent(resolvedScope)}` : "";
+    fetch(`/api/admin/notifications${scopeQuery}`)
       .then((r) => r.json())
       .then((data) => {
         setNotifications(Array.isArray(data) ? data : []);
@@ -35,7 +48,7 @@ export function OfficeNotificationsPage({
         setNotifications([]);
         setLoading(false);
       });
-  }, []);
+  }, [defaultScope]);
 
   return (
     <PortalLayout

@@ -30,19 +30,18 @@ const studentNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/payments", label: "Payments", icon: CreditCard },
   { to: "/admin/add-fee", label: "Add Fee", icon: BadgePlus },
   { to: "/admin/fees", label: "Fee Management", icon: Receipt },
-  { to: "/admin/reports", label: "Reports", icon: FileBarChart2 },
-  { to: "/admin/audit-logs", label: "Audit Logs", icon: ClipboardList },
-  { to: "/admin/notifications", label: "Notifications", icon: BellRing },
+  { to: "/admin/audit-logs", label: "Audit", icon: ClipboardList },
   { to: "/admin/account", label: "Account", icon: UserCircle2 },
 ];
 
-const facultyNav: NavItem[] = [
+const officeNav: NavItem[] = [
   { to: "/faculty", label: "Dashboard", icon: LayoutDashboard },
   { to: "/faculty/payments", label: "Payments", icon: CreditCard },
-  { to: "/faculty/account", label: "Profile", icon: UserCircle2 },
+  { to: "/faculty/notifications", label: "Notifications", icon: BellRing },
+  { to: "/faculty/reports", label: "Reports", icon: FileBarChart2 },
+  { to: "/faculty/account", label: "Account", icon: UserCircle2 },
 ];
 
 function getPortalBasePath(role: "student" | "admin" | "faculty", basePath?: string) {
@@ -70,7 +69,7 @@ export function PortalLayout({
     role === "student"
       ? studentNav
       : role === "faculty"
-        ? facultyNav.map((item) => ({
+        ? officeNav.map((item) => ({
             ...item,
             to:
               portalBasePath && item.to.startsWith("/faculty")
@@ -166,13 +165,17 @@ export function PortalLayout({
         </div>
 
         <div className="px-3 pb-4">
-          <Link
-            href="/"
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem("portalUser");
+              window.location.href = "/";
+            }}
             className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition hover:bg-destructive/15 hover:text-destructive-foreground"
           >
             <LogOut className="h-4 w-4" />
             Logout
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -184,7 +187,7 @@ export function PortalLayout({
             {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <div className="flex items-center gap-3">
-            {role !== "faculty" && (
+            {role === "admin" && (
               <Link href={role === "admin" ? "/admin/notifications" : "/student/notifications"} className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:text-foreground">
                 <Bell className="h-[18px] w-[18px]" />
                 {hasUnread && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />}

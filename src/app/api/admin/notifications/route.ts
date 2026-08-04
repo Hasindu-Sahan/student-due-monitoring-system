@@ -1,10 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { belongsToVariants, normalizeBelongsTo } from "@/lib/belongs-to";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const belongsTo = normalizeBelongsTo(req.nextUrl.searchParams.get("belongsTo"));
+    const belongsToFilters = belongsTo ? belongsToVariants(belongsTo) : [];
+
     const notifications = await prisma.notification.findMany({
-      where: { notificationType: "Payment" },
+      where: belongsTo
+        ? {
+            notificationType: "Payment",
+            student: {
+              studentFees: {
+                some: {
+                  fee: {
+                    belongsTo: { in: belongsToFilters },
+                  },
+                },
+              },
+            },
+          }
+        : { notificationType: "Payment" },
       include: { student: true },
       orderBy: { sentDate: "desc" },
       take: 100,
@@ -27,18 +44,39 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { notificationId, all } = await req.json();
+    const { notificationId, all, belongsTo } = await req.json();
+    const belongsToFilters = normalizeBelongsTo(belongsTo) ? belongsToVariants(belongsTo) : [];
 
     if (all) {
       await prisma.notification.updateMany({
-        where: { notificationType: "Payment", status: "Unread" },
+        where: belongsToFilters.length
+          ? {
+              notificationType: "Payment",
+              status: "Unread",
+              student: {
+                studentFees: {
+                  some: { fee: { belongsTo: { in: belongsToFilters } } },
+                },
+              },
+            }
+          : { notificationType: "Payment", status: "Unread" },
         data: { status: "Read" },
       });
       return NextResponse.json({ success: true });
     }
 
     const result = await prisma.notification.updateMany({
-      where: { notificationId, notificationType: "Payment" },
+      where: belongsToFilters.length
+        ? {
+            notificationId,
+            notificationType: "Payment",
+            student: {
+              studentFees: {
+                some: { fee: { belongsTo: { in: belongsToFilters } } },
+              },
+            },
+          }
+        : { notificationId, notificationType: "Payment" },
       data: { status: "Read" },
     });
 
