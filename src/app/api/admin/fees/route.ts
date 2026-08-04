@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
+import { resolvePaymentOwner } from "@/lib/belongs-to";
 
 const BELONGS_TO_OPTIONS = ["Welfare", "FAS_Office", "FBSF_Office", "FOT_Office", "SPECIFIC_STUDENT"];
 
@@ -75,17 +76,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { feeName, category, description, belongsTo, amount, dueDate, receiverFilters, userId } = await req.json();
+    const resolvedBelongsTo = resolvePaymentOwner(belongsTo);
 
-    if (!feeName || !category || !belongsTo || !dueDate || amount == null || Number.isNaN(Number(amount))) {
+    if (!feeName || !category || !resolvedBelongsTo || !dueDate || amount == null || Number.isNaN(Number(amount))) {
       return NextResponse.json({ error: "Fee type, category, belongs to, due date, and amount are required" }, { status: 400 });
     }
 
-    if (belongsTo === "SPECIFIC_STUDENT") {
+    if (resolvedBelongsTo === "SPECIFIC_STUDENT") {
       if (!receiverFilters?.studentId || typeof receiverFilters.studentId !== "string" || !receiverFilters.studentId.trim()) {
         return NextResponse.json({ error: "receiverFilters.studentId is required for specific student" }, { status: 400 });
       }
     } else {
-      if (!BELONGS_TO_OPTIONS.includes(belongsTo)) {
+      if (!BELONGS_TO_OPTIONS.includes(resolvedBelongsTo)) {
         return NextResponse.json({ error: "Belongs To value is invalid" }, { status: 400 });
       }
     }
@@ -112,7 +114,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Choose at least one receiver" }, { status: 400 });
     }
 
-    if (belongsTo === "SPECIFIC_STUDENT") {
+    if (resolvedBelongsTo === "SPECIFIC_STUDENT") {
       // Force only selected student.
       if (!filters.studentId || typeof filters.studentId !== "string") {
         return NextResponse.json({ error: "studentId is required for specific student" }, { status: 400 });
@@ -144,7 +146,7 @@ export async function POST(req: NextRequest) {
         feeTypeId: feeType.feeTypeId,
         amount: Number(amount),
         dueDate: parsedDueDate,
-        belongsTo,
+        belongsTo: resolvedBelongsTo,
       },
       include: { feeType: true },
     });
@@ -184,12 +186,13 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const { feeId, feeName, amount, dueDate, category, description, belongsTo, receiverFilters, userId } = await req.json();
+    const resolvedBelongsTo = resolvePaymentOwner(belongsTo);
 
-    if (!feeId || !feeName || !category || !belongsTo || !dueDate || amount == null || Number.isNaN(Number(amount))) {
+    if (!feeId || !feeName || !category || !resolvedBelongsTo || !dueDate || amount == null || Number.isNaN(Number(amount))) {
       return NextResponse.json({ error: "Fee type, category, belongs to, due date, and amount are required" }, { status: 400 });
     }
 
-    if (!BELONGS_TO_OPTIONS.includes(belongsTo)) {
+    if (!BELONGS_TO_OPTIONS.includes(resolvedBelongsTo)) {
       return NextResponse.json({ error: "Belongs To value is invalid" }, { status: 400 });
     }
 
@@ -217,7 +220,7 @@ export async function PATCH(req: NextRequest) {
 
     const filters = receiverFilters ?? {};
     const hasReceiverFilter = Boolean(filters.faculty || filters.level || filters.studentId || filters.studentSearch);
-    const belongsToChanged = previous.belongsTo !== belongsTo;
+    const belongsToChanged = previous.belongsTo !== resolvedBelongsTo;
 
     if (belongsToChanged && !hasReceiverFilter) {
       return NextResponse.json({ error: "Choose receivers when changing Belongs To" }, { status: 400 });
@@ -260,7 +263,7 @@ export async function PATCH(req: NextRequest) {
         feeTypeId: feeType.feeTypeId,
         amount: Number(amount),
         dueDate: parsedDueDate,
-        belongsTo,
+        belongsTo: resolvedBelongsTo,
       },
       include: { feeType: true },
     });

@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { lkr } from "@/lib/data";
+import { allowedPaymentOwnerForAdmin, paymentOwnerOptions, resolvePaymentOwner } from "@/lib/belongs-to";
 
 type Fee = {
   feeId: number;
@@ -31,7 +32,7 @@ type AdminProfile = { firstName: string; lastName: string; designation: string }
 type FeeSuggestion = { feeName: string; category: string; description: string };
 type Options = { feeTypes: string[]; categories: string[]; feeSuggestions: FeeSuggestion[]; faculties: string[]; levels: number[] };
 
-const belongsToOptions = ["Welfare", "FAS_Office", "FBSF_Office", "FOT_Office"] as const;
+const belongsToOptions = paymentOwnerOptions();
 
 function localDateInputValue(date = new Date()) {
   const year = date.getFullYear();
@@ -52,9 +53,10 @@ function normalizeAmount(value: string) {
 }
 
 function lockedFacultyForBelongsTo(value: string) {
-  if (value === "FAS_Office") return "FAS";
-  if (value === "FBSF_Office") return "FBSF";
-  if (value === "FOT_Office") return "FOT";
+  const resolved = resolvePaymentOwner(value);
+  if (resolved === "FAS_Office") return "FAS";
+  if (resolved === "FBSF_Office") return "FBSF";
+  if (resolved === "FOT_Office") return "FOT";
   return null;
 }
 
@@ -72,6 +74,7 @@ export default function FeeManagement() {
   const [selected, setSelected] = useState<Fee | null>(null);
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
+  const [allowedOwner, setAllowedOwner] = useState("");
   const [options, setOptions] = useState<Options>({
     feeTypes: [],
     categories: [],
@@ -120,6 +123,7 @@ export default function FeeManagement() {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     setSessionUserId(session?.userId ?? null);
+    setAllowedOwner(allowedPaymentOwnerForAdmin(session?.username));
 
     const params = new URLSearchParams();
     if (session?.userId) params.set("userId", String(session.userId));
@@ -225,7 +229,7 @@ export default function FeeManagement() {
         feeName: feeName.trim(),
         category: category.trim(),
         description: description.trim(),
-        belongsTo,
+        belongsTo: resolvePaymentOwner(belongsTo),
         amount: Number(normalizedAmount),
         dueDate,
         receiverFilters,
@@ -348,7 +352,7 @@ export default function FeeManagement() {
                       className={inputClass}
                     >
                       <option value="">Select owner</option>
-                      {belongsToOptions.map((item) => (
+                      {(allowedOwner ? [allowedOwner] : belongsToOptions).map((item) => (
                         <option key={item} value={item}>
                           {item}
                         </option>

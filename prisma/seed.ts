@@ -16,6 +16,12 @@ async function main() {
     "bursar@university.lk",
     "a001@university.lk",
     "a002@university.lk",
+    "a003@university.lk",
+    "a004@university.lk",
+    "a005@university.lk",
+    "a006@university.lk",
+    "a007@university.lk",
+    "a008@university.lk",
     "fac001@university.lk",
     "wel001@university.lk",
   ];
@@ -171,95 +177,93 @@ async function main() {
     console.log("Seeded admin login: A001 / a1234 (role Admin)");
   }
 
-  // ---------------------------------------------------------------------
-  // Seed system administrator login
-  //   username : A002
-  //   password : a1234
-  //   role     : Admin (full portal access)
-  // ---------------------------------------------------------------------
-  const systemAdminUsername = "A002";
-  const systemAdminPassword = "a1234";
-  const systemAdminEmail = "a002@university.lk";
+  const adminAccounts = [
+    { username: "A002", email: "a002@university.lk", firstName: "System", lastName: "Administrator", designation: "FAS_Office", role: "Admin" as const },
+    { username: "A003", email: "a003@university.lk", firstName: "FOT", lastName: "Office", designation: "FOT_Office", role: "Admin" as const },
+    { username: "A004", email: "a004@university.lk", firstName: "FBSF", lastName: "Office", designation: "FBSF_Office", role: "Admin" as const },
+    { username: "A005", email: "a005@university.lk", firstName: "Welfare", lastName: "Office", designation: "Welfare", role: "Admin" as const },
+    { username: "A006", email: "a006@university.lk", firstName: "Welfare", lastName: "Office", designation: "Welfare", role: "Admin" as const },
+    { username: "A007", email: "a007@university.lk", firstName: "Welfare", lastName: "Office", designation: "Welfare", role: "Admin" as const },
+    { username: "A008", email: "a008@university.lk", firstName: "Welfare", lastName: "Office", designation: "Welfare", role: "Admin" as const },
+  ];
 
-  const existingSystemAdminUser = await prisma.user.findFirst({
-    where: { username: systemAdminUsername },
-  });
-
-  if (existingSystemAdminUser) {
-    const passwordHash = await bcrypt.hash(systemAdminPassword, 10);
-    await prisma.user.update({
-      where: { userId: existingSystemAdminUser.userId },
-      data: {
-        username: systemAdminUsername,
-        passwordHash,
-        role: "Admin",
-        email: systemAdminEmail,
-        isActive: true,
-      },
+  for (const account of adminAccounts) {
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+    const existingUser = await prisma.user.findFirst({
+      where: { username: account.username },
     });
 
-    const existingSystemAdminProfile = await prisma.admin.findFirst({
-      where: {
-        OR: [
-          { userId: existingSystemAdminUser.userId },
-          { employeeId: systemAdminUsername },
-        ],
-      },
-    });
-
-    if (!existingSystemAdminProfile) {
-      await prisma.admin.create({
+    if (existingUser) {
+      await prisma.user.update({
+        where: { userId: existingUser.userId },
         data: {
-          employeeId: systemAdminUsername,
-          firstName: "System",
-          lastName: "Administrator",
-          phone: null,
-          designation: "System Administrator",
-          userId: existingSystemAdminUser.userId,
+          username: account.username,
+          passwordHash,
+          role: account.role,
+          email: account.email,
+          isActive: true,
         },
       });
+
+      const existingProfile = await prisma.admin.findFirst({
+        where: {
+          OR: [
+            { userId: existingUser.userId },
+            { employeeId: account.username },
+          ],
+        },
+      });
+
+      if (!existingProfile) {
+        await prisma.admin.create({
+          data: {
+            employeeId: account.username,
+            firstName: account.firstName,
+            lastName: account.lastName,
+            phone: null,
+            designation: account.designation,
+            userId: existingUser.userId,
+          },
+        });
+      } else {
+        await prisma.admin.update({
+          where: { adminId: existingProfile.adminId },
+          data: {
+            employeeId: account.username,
+            firstName: account.firstName,
+            lastName: account.lastName,
+            phone: null,
+            designation: account.designation,
+            userId: existingUser.userId,
+          },
+        });
+      }
     } else {
-      await prisma.admin.update({
-        where: { adminId: existingSystemAdminProfile.adminId },
+      const createdUser = await prisma.user.create({
         data: {
-          employeeId: systemAdminUsername,
-          firstName: "System",
-          lastName: "Administrator",
+          username: account.username,
+          passwordHash,
+          role: account.role,
+          email: account.email,
+          isActive: true,
+          lastLogin: null,
+        },
+      });
+
+      await prisma.admin.create({
+        data: {
+          employeeId: account.username,
+          firstName: account.firstName,
+          lastName: account.lastName,
           phone: null,
-          designation: "System Administrator",
-          userId: existingSystemAdminUser.userId,
+          designation: account.designation,
+          userId: createdUser.userId,
         },
       });
     }
-
-    console.log("System administrator login user already exists; refreshed credentials/profile.");
-  } else {
-    const passwordHash = await bcrypt.hash(systemAdminPassword, 10);
-
-    const createdSystemAdminUser = await prisma.user.create({
-      data: {
-        username: systemAdminUsername,
-        passwordHash,
-        role: "Admin",
-        email: systemAdminEmail,
-        isActive: true,
-        lastLogin: null,
-      },
-    });
-
-    await prisma.admin.create({
-      data: {
-        employeeId: systemAdminUsername,
-        firstName: "System",
-        lastName: "Administrator",
-        phone: null,
-        designation: "System Administrator",
-        userId: createdSystemAdminUser.userId,
-      },
-    });
-
-    console.log("Seeded system administrator login: A002 / a1234 (role Admin)");
   }
+
+  console.log("Seeded admin logins A001-A008 with password a1234.");
 
   // ---------------------------------------------------------------------
   // Seed faculty (sub-admin) login

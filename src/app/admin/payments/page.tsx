@@ -5,6 +5,7 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
+import { allowedPaymentOwnerForAdmin } from "@/lib/belongs-to";
 import { CircleDollarSign, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye, RotateCcw } from "lucide-react";
 
 type Payment = { paymentId: number; date: string; sid: string; name: string; feeType: string; category: string; faculty: string; level: number | null; amount: number; status: string; bankSlipUrl: string | null };
@@ -70,6 +71,7 @@ export default function AdminPayments() {
   });
 
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
+  const [sessionScope, setSessionScope] = useState("");
   const [loading, setLoading] = useState(true);
   const [viewSlip, setViewSlip] = useState<Payment | null>(null);
   const [page, setPage] = useState(1);
@@ -88,13 +90,16 @@ export default function AdminPayments() {
     const params = new URLSearchParams();
     if (session?.userId) params.set("userId", String(session.userId));
     if (session?.username) params.set("username", session.username);
+    const belongsTo = allowedPaymentOwnerForAdmin(session?.username);
+    setSessionScope(belongsTo);
     const accountQuery = params.toString() ? `?${params.toString()}` : "";
+    const scopeQuery = belongsTo ? `?belongsTo=${encodeURIComponent(belongsTo)}` : "";
 
     Promise.all([
-      fetch("/api/admin/payments").then((r) => r.json()),
-      fetch("/api/admin/stats").then((r) => r.json()),
+      fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
+      fetch(`/api/admin/stats${scopeQuery}${accountQuery ? `&${accountQuery.slice(1)}` : ""}`).then((r) => r.json()),
       fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
-      fetch("/api/admin/payments-options").then((r) => r.json()),
+      fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
     ]).then(([p, s, a, opts]) => {
       setPayments(Array.isArray(p) ? p : []);
       setStats(s && typeof s === "object" && !Array.isArray(s) ? { ...emptyStats, ...s } : emptyStats);
@@ -125,7 +130,7 @@ export default function AdminPayments() {
       body: JSON.stringify({ paymentId, status, userId: sessionUserId }),
     });
     setPayments((prev) => prev.map((p) => (p.paymentId === paymentId ? { ...p, status } : p)));
-    const nextStats = await fetch("/api/admin/stats").then(r => r.json());
+    const nextStats = await fetch(`/api/admin/stats${sessionScope ? `?belongsTo=${encodeURIComponent(sessionScope)}` : ""}`).then(r => r.json());
     setStats(nextStats);
   };
 

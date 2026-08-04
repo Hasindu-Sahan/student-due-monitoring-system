@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BadgePlus, CheckCircle2, Search, Send, Users } from "lucide-react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
+import { allowedPaymentOwnerForAdmin, paymentOwnerOptions, resolvePaymentOwner } from "@/lib/belongs-to";
 
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 type FeeSuggestion = { feeName: string; category: string; description: string };
@@ -14,7 +15,7 @@ type Options = {
   levels: number[];
 };
 
-const belongsToOptions = ["Welfare", "FAS_Office", "FBSF_Office", "FOT_Office"] as const;
+const belongsToOptions = paymentOwnerOptions();
 
 function localDateInputValue(date = new Date()) {
   const year = date.getFullYear();
@@ -45,6 +46,7 @@ const textareaClass =
 export default function AddFeePage() {
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [sessionUserId, setSessionUserId] = useState<number | null>(null);
+  const [allowedOwner, setAllowedOwner] = useState("");
   const [options, setOptions] = useState<Options>({
     feeTypes: [],
     categories: [],
@@ -66,9 +68,10 @@ export default function AddFeePage() {
   const receiverIsSpecificStudent = receiverType === "specific_student";
 
   const lockedFacultyForBelongsTo = (value: string) => {
-    if (value === "FAS_Office") return "FAS";
-    if (value === "FBSF_Office") return "FBSF";
-    if (value === "FOT_Office") return "FOT";
+    const resolved = resolvePaymentOwner(value);
+    if (resolved === "FAS_Office") return "FAS";
+    if (resolved === "FBSF_Office") return "FBSF";
+    if (resolved === "FOT_Office") return "FOT";
     return null;
   };
 
@@ -85,6 +88,7 @@ export default function AddFeePage() {
     const stored = localStorage.getItem("portalUser");
     const session = stored ? JSON.parse(stored) : null;
     setSessionUserId(session?.userId ?? null);
+    setAllowedOwner(allowedPaymentOwnerForAdmin(session?.username));
 
     const params = new URLSearchParams();
     if (session?.userId) params.set("userId", String(session.userId));
@@ -193,7 +197,7 @@ export default function AddFeePage() {
       body: JSON.stringify({
         feeName: feeName.trim(),
         category: category.trim(),
-        belongsTo,
+        belongsTo: resolvePaymentOwner(belongsTo),
         description: description.trim(),
         dueDate,
         amount: Number(normalizedAmount),
@@ -292,8 +296,6 @@ export default function AddFeePage() {
                   onChange={(event) => {
                     const next = event.target.value;
                     setBelongsTo(next);
-
-                    // Auto-fill faculty based on belongsTo selection and lock it.
                     if (next === "FAS_Office") setFaculty("FAS");
                     if (next === "FBSF_Office") setFaculty("FBSF");
                     if (next === "FOT_Office") setFaculty("FOT");
@@ -301,7 +303,7 @@ export default function AddFeePage() {
                   className={inputClass}
                 >
                   <option value="">Select owner</option>
-                  {belongsToOptions.map((item) => (
+                  {(allowedOwner ? [allowedOwner] : belongsToOptions).map((item) => (
                     <option key={item} value={item}>
                       {item}
                     </option>

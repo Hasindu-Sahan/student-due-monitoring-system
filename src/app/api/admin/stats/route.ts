@@ -2,30 +2,114 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { belongsToVariants, normalizeBelongsTo } from "@/lib/belongs-to";
 
+async function resolveAdminUserId(input?: { userId?: unknown; username?: unknown; profileId?: unknown }) {
+  const userId = Number(input?.userId);
+  if (Number.isInteger(userId) && userId > 0) {
+    const user = await prisma.user.findUnique({
+      where: { userId },
+      include: { admin: true },
+    });
+    if (user?.admin) return user.userId;
+  }
+
+  const username = String(input?.username ?? input?.profileId ?? "").trim();
+  if (!username) return null;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ username }, { email: username }],
+    },
+    include: { admin: true },
+  });
+
+  if (user?.admin) return user.userId;
+
+  const admin = await prisma.admin.findFirst({
+    where: {
+      OR: [
+        { employeeId: username },
+        { user: { username } },
+        { user: { email: username } },
+      ],
+    },
+    include: { user: true },
+  });
+
+  return admin?.userId ?? null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const belongsTo = normalizeBelongsTo(req.nextUrl.searchParams.get("belongsTo"));
     const belongsToFilters = belongsTo ? belongsToVariants(belongsTo) : [];
+    const resolvedUserId = await resolveAdminUserId({
+      userId: req.nextUrl.searchParams.get("userId"),
+      username: req.nextUrl.searchParams.get("username"),
+      profileId: req.nextUrl.searchParams.get("profileId"),
+    });
 
-    const studentFeesWhere = belongsTo
-      ? { fee: { belongsTo: { in: belongsToFilters } } }
-      : undefined;
+    const adminFeeLogs = resolvedUserId
+      ? await prisma.auditLog.findMany({
+        where: {
+          userId: resolvedUserId,
+          tableName: "fees",
+        },
+        orderBy: { timestamp: "desc" },
+      })
+      : [];
+    const adminFeeIds = Array.from(
+      new Set(
+        adminFeeLogs
+          .map((log) => Number((log as any).recordId ?? (log as any).currentState?.feeId))
+          .filter((feeId) => Number.isInteger(feeId) && feeId > 0),
+      ),
+    );
+
+    const studentFeesWhere = {
+      AND: [
+        ...(belongsTo ? [{ fee: { belongsTo: { in: belongsToFilters } } }] : []),
+        ...(adminFeeIds.length > 0 ? [{ feeId: { in: adminFeeIds } }] : []),
+      ],
+    };
     const studentFees = await prisma.studentFee.findMany({
       where: studentFeesWhere,
       include: { fee: true, payments: true },
     });
-    const payments = await prisma.payment.findMany({
-      where: belongsTo
-        ? {
-            studentFee: {
-              fee: {
-                belongsTo: { in: belongsToFilters },
+    const paymentWhere = {
+      AND: [
+        ...(belongsTo
+          ? [
+              {
+                studentFee: {
+                  fee: {
+                    belongsTo: { in: belongsToFilters },
+                  },
+                },
               },
-            },
-          }
-        : undefined,
+            ]
+          : []),
+        ...(adminFeeIds.length > 0
+          ? [
+              {
+                studentFee: {
+                  feeId: { in: adminFeeIds },
+                },
+              },
+            ]
+          : []),
+      ],
+    };
+    const payments = await prisma.payment.findMany({
+      where: paymentWhere,
       orderBy: { paymentId: "desc" },
-      select: { studentFeeId: true, amountPaid: true, status: true },
+      include: {
+        studentFee: {
+          include: {
+            student: true,
+            fee: { include: { feeType: true } },
+          },
+        },
+      },
     });
     const latestPayments = Array.from(
       payments.reduce((latest, payment) => {
@@ -58,25 +142,27 @@ export async function GET(req: NextRequest) {
       (sum, payment) => (payment.status === "Approved" ? sum + Number(payment.amountPaid) : sum),
       0,
     );
-    const activeStudents = await prisma.student.count({
-      where: { enrollmentStatus: { equals: "Active", mode: "insensitive" } },
-    });
-    const totalStudents = await prisma.student.count();
-    const paidFees = studentFees.filter((sf) => sf.status === "Paid").length;
-    const paymentRate = studentFees.length > 0 ? Math.round((paidFees / studentFees.length) * 1000) / 10 : 0;
+    const latestPaymentRows = latestPayments.map((payment) => ({
+      paymentId: payment.paymentId,
+      date: payment.paymentDate.toISOString().split("T")[0],
+      sid: payment.studentFee.student.studentId,
+      name: `${payment.studentFee.student.firstName} ${payment.studentFee.student.lastName}`,
+      feeType: payment.studentFee.fee.feeType.feeName,
+      category: payment.studentFee.fee.feeType.category ?? "",
+      faculty: payment.studentFee.student.faculty ?? "",
+      level: payment.studentFee.student.level ?? null,
+      amount: Number(payment.amountPaid),
+      status: payment.status ?? "Pending",
+      bankSlipUrl: payment.bankSlipUrl ?? null,
+    }));
 
     return NextResponse.json({
       totalPaid,
-      totalDues: totalRemainingDues,
-      totalRemainingDues,
-      totalPendingDues,
-      totalOverdue,
+      totalNotPaid: latestPayments.filter((payment) => payment.status !== "Approved").length,
       approved,
       pending,
       rejected,
-      activeStudents,
-      totalStudents,
-      paymentRate,
+      latestPayments: latestPaymentRows,
     });
   } catch (error) {
     console.error(error);
