@@ -293,6 +293,7 @@ export default function AddFeePage() {
     setFaculty("all");
     setLevel("all");
     setReceiverType("faculty");
+    window.dispatchEvent(new Event("fee-data-changed"));
   };
 
   return (

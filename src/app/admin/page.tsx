@@ -8,28 +8,20 @@ import { lkr } from "@/lib/data";
 
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 type AdminDashboardPayment = {
-  paymentId: number;
-  date: string;
-  sid: string;
-  name: string;
+  feeId: number;
+  addedDate: string;
   feeType: string;
+  category: string;
+  dueDate: string;
+  receivers: string;
   amount: number;
-  status: string;
-  faculty: string;
-  level: number | null;
 };
-type AdminDashboardStats = {
-  latestPayments: AdminDashboardPayment[];
-};
-
-const emptyStats: AdminDashboardStats = {
-  latestPayments: [],
-};
+const emptyRows: AdminDashboardPayment[] = [];
 
 const paymentsPerPage = 8;
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<AdminDashboardStats>(emptyStats);
+  const [rows, setRows] = useState<AdminDashboardPayment[]>(emptyRows);
   const [admin, setAdmin] = useState<AdminProfile>({ firstName: "Admin", lastName: "", designation: "" });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -44,14 +36,20 @@ export default function AdminDashboard() {
     const query = params.toString() ? `?${params.toString()}` : "";
 
     Promise.all([
-      fetch(`/api/admin/stats${query}`).then((r) => r.json()),
-      fetch(`/api/admin/account${query}`).then((r) => r.json()),
+      fetch(`/api/admin/fees${query}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/admin/account${query}`, { cache: "no-store" }).then((r) => r.json()),
     ])
-      .then(([statsData, accountData]) => {
-        if (statsData && typeof statsData === "object" && !Array.isArray(statsData) && !statsData.error) {
-          setStats({
-            latestPayments: Array.isArray(statsData.latestPayments) ? statsData.latestPayments : [],
-          });
+      .then(([feesData, accountData]) => {
+        if (Array.isArray(feesData)) {
+          setRows(feesData.map((fee: any) => ({
+            feeId: fee.feeId,
+            addedDate: fee.addedDate ?? fee.due ?? "",
+            feeType: fee.type ?? "",
+            category: fee.category ?? "",
+            dueDate: fee.dueDate ?? fee.due ?? "",
+            receivers: fee.receivers ?? "All receivers",
+            amount: Number(fee.amount ?? 0),
+          })));
         }
         if (accountData && typeof accountData === "object" && !Array.isArray(accountData) && !accountData.error) {
           setAdmin(accountData);
@@ -60,16 +58,48 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(stats.latestPayments.length / paymentsPerPage));
+  useEffect(() => {
+    const refresh = () => {
+      const stored = localStorage.getItem("portalUser");
+      const session = stored ? JSON.parse(stored) : null;
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      if (session?.profileId) params.set("profileId", session.profileId);
+      const query = params.toString() ? `?${params.toString()}` : "";
+
+      fetch(`/api/admin/fees${query}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((feesData) => {
+          if (Array.isArray(feesData)) {
+            setRows(feesData.map((fee: any) => ({
+              feeId: fee.feeId,
+              addedDate: fee.addedDate ?? fee.due ?? "",
+              feeType: fee.type ?? "",
+              category: fee.category ?? "",
+              dueDate: fee.dueDate ?? fee.due ?? "",
+              receivers: fee.receivers ?? "All receivers",
+              amount: Number(fee.amount ?? 0),
+            })));
+          }
+        });
+    };
+
+    window.addEventListener("fee-data-changed", refresh);
+    return () => window.removeEventListener("fee-data-changed", refresh);
+  }, []);
+
+  const dashboardRows = rows;
+  const totalPages = Math.max(1, Math.ceil(dashboardRows.length / paymentsPerPage));
   const currentPage = Math.min(page, totalPages);
   const visiblePayments = useMemo(
-    () => stats.latestPayments.slice((currentPage - 1) * paymentsPerPage, currentPage * paymentsPerPage),
-    [currentPage, stats.latestPayments]
+    () => dashboardRows.slice((currentPage - 1) * paymentsPerPage, currentPage * paymentsPerPage),
+    [currentPage, dashboardRows]
   );
 
   useEffect(() => {
     setPage(1);
-  }, [stats.latestPayments]);
+  }, [dashboardRows]);
 
   return (
     <PortalLayout
@@ -85,11 +115,11 @@ export default function AdminDashboard() {
       <div className="mt-6 rounded-2xl border bg-card shadow-card">
         <div className="flex items-center justify-between border-b px-6 py-4">
           <div>
-            <h2 className="text-base font-semibold">Latest Added Payments</h2>
-            <p className="text-xs text-muted-foreground">Records created under your admin account</p>
+            <h2 className="text-base font-semibold">Recently Added Payments</h2>
+            <p className="text-xs text-muted-foreground">All fee types created by your admin account</p>
           </div>
           <p className="text-xs text-muted-foreground">
-            {stats.latestPayments.length} records
+            {dashboardRows.length} records
           </p>
         </div>
 
@@ -97,7 +127,7 @@ export default function AdminDashboard() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                {["Date", "Student ID", "Student Name", "Fee Type", "Amount", "Status"].map((header) => (
+                {["Date", "Fee Type", "Category", "Amount", "Due Date", "Receivers"].map((header) => (
                   <th key={header} className="px-6 py-3 font-medium">
                     {header}
                   </th>
@@ -114,18 +144,21 @@ export default function AdminDashboard() {
               ) : visiblePayments.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                    No payments found
+                    No fee additions found
                   </td>
                 </tr>
               ) : (
-                visiblePayments.map((payment) => (
-                  <tr key={payment.paymentId} className="border-b last:border-0 transition hover:bg-muted/30">
-                    <td className="px-6 py-4 text-muted-foreground">{payment.date}</td>
-                    <td className="px-6 py-4 font-mono text-xs">{payment.sid}</td>
-                    <td className="px-6 py-4 font-medium">{payment.name}</td>
+                visiblePayments.map((payment, index) => (
+                  <tr
+                    key={`${payment.feeId}-${payment.addedDate}-${payment.receivers}-${index}`}
+                    className="border-b last:border-0 transition hover:bg-muted/30"
+                  >
+                    <td className="px-6 py-4 text-muted-foreground">{payment.addedDate}</td>
                     <td className="px-6 py-4 text-muted-foreground">{payment.feeType}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{payment.category}</td>
                     <td className="px-6 py-4 font-semibold tabular-nums">{lkr(payment.amount)}</td>
-                    <td className="px-6 py-4">{payment.status}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{payment.dueDate || "-"}</td>
+                    <td className="px-6 py-4 text-sm">{payment.receivers}</td>
                   </tr>
                 ))
               )}
@@ -135,9 +168,9 @@ export default function AdminDashboard() {
 
         <div className="flex items-center justify-between gap-3 border-t px-6 py-4 text-xs text-muted-foreground">
           <span>
-            Showing {stats.latestPayments.length === 0 ? 0 : (currentPage - 1) * paymentsPerPage + 1}
+            Showing {dashboardRows.length === 0 ? 0 : (currentPage - 1) * paymentsPerPage + 1}
             {" "}
-            to {Math.min(currentPage * paymentsPerPage, stats.latestPayments.length)} of {stats.latestPayments.length}
+            to {Math.min(currentPage * paymentsPerPage, dashboardRows.length)} of {dashboardRows.length}
           </span>
           <div className="flex items-center gap-2">
             <button

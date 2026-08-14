@@ -26,6 +26,9 @@ type Fee = {
   belongsTo: string;
   amount: number;
   due: string;
+  dueDate?: string;
+  addedDate?: string;
+  receivers?: string;
   assignedCount?: number;
 };
 type AdminProfile = { firstName: string; lastName: string; designation: string };
@@ -86,15 +89,19 @@ export default function FeeManagement() {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [belongsTo, setBelongsTo] = useState("");
-  const [receiverType, setReceiverType] = useState<"faculty" | "specific_student">("faculty");
+  const [receiverType, setReceiverType] = useState<"faculty" | "specific_student" | "batch_upload">("faculty");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [faculty, setFaculty] = useState("all");
   const [level, setLevel] = useState("all");
   const [studentId, setStudentId] = useState("");
+  const [batchFileName, setBatchFileName] = useState("");
+  const [batchAssignments, setBatchAssignments] = useState<{ studentId: string; amount: number }[]>([]);
+  const [batchError, setBatchError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Fee | null>(null);
 
   const receiverIsSpecificStudent = receiverType === "specific_student";
+  const receiverIsBatchUpload = receiverType === "batch_upload";
 
   const [message, setMessage] = useState("");
 
@@ -117,6 +124,10 @@ export default function FeeManagement() {
       })
       .catch(() => setFees([]))
       .finally(() => setLoading(false));
+  };
+
+  const notifyFeeDataChanged = () => {
+    window.dispatchEvent(new Event("fee-data-changed"));
   };
 
   useEffect(() => {
@@ -164,6 +175,9 @@ export default function FeeManagement() {
 
     // StudentID editing is only meaningful when belongsTo is SPECIFIC_STUDENT.
     setStudentId("");
+    setBatchFileName("");
+    setBatchAssignments([]);
+    setBatchError("");
   }, [selected]);
 
 
@@ -173,7 +187,53 @@ export default function FeeManagement() {
     const previous = options.feeSuggestions.find((item) => item.feeName.toLowerCase() === value.trim().toLowerCase());
     if (previous) {
       setCategory(previous.category);
-      setDescription(previous.description);
+    setDescription(previous.description);
+    }
+  };
+
+  const parseBatchFile = async (file: File) => {
+    setBatchError("");
+    setBatchAssignments([]);
+    setBatchFileName(file.name);
+
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    try {
+      if (extension === "csv") {
+        const text = await file.text();
+        const rows = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => line.split(",").map((cell) => cell.trim()));
+        const [, ...dataRows] = rows;
+        const assignments = dataRows
+          .map((row) => ({ studentId: row[0] ?? "", amount: Number(row[1]) }))
+          .filter((row) => row.studentId && Number.isFinite(row.amount) && row.amount > 0);
+        if (assignments.length === 0) throw new Error("No valid student rows were found in the file.");
+        setBatchAssignments(assignments);
+        return;
+      }
+
+      if (extension === "xlsx" || extension === "xls") {
+        const buffer = await file.arrayBuffer();
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const sheet = workbook.SheetNames[0];
+        if (!sheet) throw new Error("The spreadsheet does not contain any sheets.");
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { header: 1, defval: "" }) as (string | number)[][];
+        const [, ...dataRows] = rows;
+        const assignments = dataRows
+          .map((row) => ({ studentId: String(row[0] ?? "").trim(), amount: Number(row[1]) }))
+          .filter((row) => row.studentId && Number.isFinite(row.amount) && row.amount > 0);
+        if (assignments.length === 0) throw new Error("No valid student rows were found in the file.");
+        setBatchAssignments(assignments);
+        return;
+      }
+
+      throw new Error("Please upload a CSV, XLS, or XLSX file.");
+    } catch (error) {
+      setBatchAssignments([]);
+      setBatchError(error instanceof Error ? error.message : "Failed to read the upload file.");
     }
   };
 
@@ -192,6 +252,12 @@ export default function FeeManagement() {
       if (!studentId.trim()) {
         setMessageType("error");
         setMessage("Please enter the student ID.");
+        return;
+      }
+    } else if (receiverIsBatchUpload) {
+      if (batchAssignments.length === 0) {
+        setMessageType("error");
+        setMessage("Please upload a valid batch file.");
         return;
       }
     } else {
@@ -216,9 +282,11 @@ export default function FeeManagement() {
 
     const receiverFilters = receiverIsSpecificStudent
       ? { studentId: studentId.trim() }
-      : level === "all"
-        ? { faculty, level: "all" }
-        : { faculty, level: String(level) };
+      : receiverIsBatchUpload
+        ? { batchAssignments }
+        : level === "all"
+          ? { faculty, level: "all" }
+          : { faculty, level: String(level) };
 
 
     const response = await fetch("/api/admin/fees", {
@@ -248,6 +316,7 @@ export default function FeeManagement() {
     setMessageType("success");
     setMessage(`Fee updated for ${data.assignedCount} receiver${data.assignedCount === 1 ? "" : "s"}.`);
     loadFees();
+    notifyFeeDataChanged();
   };
 
   const handleDelete = async (feeId: number) => {
@@ -257,6 +326,7 @@ export default function FeeManagement() {
       body: JSON.stringify({ feeId, userId: sessionUserId }),
     });
     loadFees();
+    notifyFeeDataChanged();
   };
 
 
@@ -386,15 +456,51 @@ export default function FeeManagement() {
                       />
                       Specific Student
                     </label>
+
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="receiver"
+                        value="batch_upload"
+                        checked={receiverIsBatchUpload}
+                        onChange={() => setReceiverType("batch_upload")}
+                      />
+                      Batch Upload
+                    </label>
                   </div>
                 </div>
+
+                {receiverIsBatchUpload && (
+                  <div className="sm:col-span-2 rounded-xl border border-dashed bg-muted/20 p-4">
+                    <label className="block">
+                      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Batch Upload</span>
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void parseBatchFile(file);
+                        }}
+                        className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-semibold file:text-primary-foreground"
+                      />
+                    </label>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      First row should contain headings. Column 1 must be Student ID and column 2 must be Fee Amount.
+                    </p>
+                    {batchFileName && <p className="mt-2 text-xs font-medium text-foreground">File: {batchFileName}</p>}
+                    {batchAssignments.length > 0 && (
+                      <p className="mt-1 text-xs text-success">{batchAssignments.length} student row(s) loaded.</p>
+                    )}
+                    {batchError && <p className="mt-2 text-xs text-destructive">{batchError}</p>}
+                  </div>
+                )}
 
                 {receiverIsSpecificStudent ? (
                   <label className="block sm:col-span-2">
                     <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Student ID</span>
                     <input required value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputClass} />
                   </label>
-                ) : (
+                ) : receiverIsBatchUpload ? null : (
                   <>
                     <label className="block">
                       <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Faculty</span>
@@ -450,7 +556,8 @@ export default function FeeManagement() {
                     required
                     type="text"
                     inputMode="decimal"
-                    value={amount}
+                    disabled={receiverIsBatchUpload}
+                    value={receiverIsBatchUpload ? "Loaded from file" : amount}
                     onBlur={() => setAmount((value) => normalizeAmount(value))}
                     onChange={(event) => setAmount(sanitizeAmount(event.target.value))}
                     className={inputClass}

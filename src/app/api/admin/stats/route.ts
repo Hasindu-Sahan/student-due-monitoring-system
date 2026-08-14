@@ -156,6 +156,32 @@ export async function GET(req: NextRequest) {
       bankSlipUrl: payment.bankSlipUrl ?? null,
     }));
 
+    const latestFeeRows = adminFeeLogs
+      .filter((log) => log.action === "Created fee")
+      .map((log) => {
+        const state = (log.currentState ?? {}) as any;
+        const filters = state.receiverFilters ?? {};
+        const receivers = Array.isArray(filters.batchAssignments)
+          ? filters.batchAssignments.map((item: any) => item.studentId).join(", ")
+          : filters.studentId
+            ? String(filters.studentId)
+            : filters.faculty
+              ? `${filters.faculty}${filters.level && filters.level !== "all" ? ` / Level ${filters.level}` : ""}`
+              : "All receivers";
+        return {
+          paymentId: log.logId,
+          date: log.timestamp.toISOString().split("T")[0],
+          sid: String(receivers),
+          name: String(state.feeName ?? "New fee"),
+          feeType: String(state.feeName ?? "New fee"),
+          category: String(state.category ?? ""),
+          dueDate: String(state.dueDate ?? ""),
+          receivers,
+          amount: Number(state.amount ?? 0),
+          status: "Assigned",
+        };
+      });
+
     return NextResponse.json({
       totalPaid,
       totalNotPaid: latestPayments.filter((payment) => payment.status !== "Approved").length,
@@ -163,6 +189,7 @@ export async function GET(req: NextRequest) {
       pending,
       rejected,
       latestPayments: latestPaymentRows,
+      latestFeeAssignments: latestFeeRows,
     });
   } catch (error) {
     console.error(error);

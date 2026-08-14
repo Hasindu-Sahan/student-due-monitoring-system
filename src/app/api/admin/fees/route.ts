@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
-import { resolvePaymentOwner } from "@/lib/belongs-to";
+import { allowedPaymentOwnerForAdmin, resolvePaymentOwner } from "@/lib/belongs-to";
 
 const BELONGS_TO_OPTIONS = ["Welfare", "FAS_Office", "FBSF_Office", "FOT_Office", "SPECIFIC_STUDENT"];
 
@@ -21,6 +21,7 @@ function parseDueDate(value: string) {
 }
 
 function formatFee(fee: any) {
+  const assignedCount = fee._count?.studentFees ?? fee.studentFees?.length ?? 0;
   return {
     feeId: fee.feeId,
     type: fee.feeType.feeName,
@@ -30,7 +31,35 @@ function formatFee(fee: any) {
     belongsTo: fee.belongsTo ?? "",
     amount: Number(fee.amount),
     due: fee.dueDate?.toISOString().split("T")[0] ?? "",
-    assignedCount: fee._count?.studentFees ?? fee.studentFees?.length ?? 0,
+    dueDate: fee.dueDate?.toISOString().split("T")[0] ?? "",
+    assignedCount,
+    receivers:
+      assignedCount === 1
+        ? String(fee.studentFees?.[0]?.studentId ?? "")
+        : fee.belongsTo ?? "",
+  };
+}
+
+function formatFeeAudit(feeId: number, logs: any[]) {
+  const created = [...logs].reverse().find((log) => {
+    const stateFeeIds = Array.isArray((log.currentState as any)?.createdFeeIds) ? (log.currentState as any).createdFeeIds : [];
+    const recordIds = Array.isArray((log.currentState as any)?.createdFeeIds)
+      ? [Number(log.recordId ?? log.currentState?.feeId), ...stateFeeIds]
+      : [Number(log.recordId ?? log.currentState?.feeId)];
+    return log.action === "Created fee" && recordIds.includes(feeId);
+  });
+  const state = (created?.currentState ?? {}) as any;
+  const filters = state.receiverFilters ?? {};
+  const receivers = Array.isArray(filters.batchAssignments)
+    ? filters.batchAssignments.map((item: any) => item.studentId).join(", ")
+    : filters.studentId
+      ? String(filters.studentId)
+      : filters.faculty
+        ? `${filters.faculty}${filters.level && filters.level !== "all" ? ` / Level ${filters.level}` : ""}`
+        : "All receivers";
+  return {
+    addedDate: created?.timestamp?.toISOString?.().split("T")[0] ?? "",
+    receivers,
   };
 }
 
@@ -67,16 +96,61 @@ function normalizeBatchAssignments(value: unknown) {
     .filter((item) => item.studentId && Number.isFinite(item.amount) && item.amount > 0);
 }
 
-export async function GET() {
+async function resolveAdminUserId(input?: { userId?: unknown; username?: unknown }) {
+  const userId = Number(input?.userId);
+  if (Number.isInteger(userId) && userId > 0) return userId;
+  const username = String(input?.username ?? "").trim();
+  if (!username) return null;
+  if (!allowedPaymentOwnerForAdmin(username)) return null;
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ username }, { email: username }] },
+    select: { userId: true },
+  });
+  return user?.userId ?? null;
+}
+
+function expandFeeIds(adminLogs: any[]) {
+  return Array.from(
+    new Set(
+      adminLogs.flatMap((log) => {
+        const createdFeeIds = Array.isArray((log.currentState as any)?.createdFeeIds) ? (log.currentState as any).createdFeeIds : [];
+        return [Number(log.recordId ?? log.currentState?.feeId), ...createdFeeIds];
+      }).filter((feeId) => Number.isInteger(feeId) && feeId > 0),
+    ),
+  );
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const fees = await prisma.fee.findMany({
-      include: { feeType: true, _count: { select: { studentFees: true } } },
+    const resolvedUserId = await resolveAdminUserId({
+      userId: req.nextUrl.searchParams.get("userId"),
+      username: req.nextUrl.searchParams.get("username"),
+    });
+    const adminLogs = resolvedUserId
+      ? await prisma.auditLog.findMany({
+          where: { userId: resolvedUserId, tableName: "fees" },
+          orderBy: { timestamp: "desc" },
+        })
+      : [];
+    const adminFeeIds = expandFeeIds(adminLogs);
+
+  const fees = await prisma.fee.findMany({
+      where: adminFeeIds.length > 0 ? { feeId: { in: adminFeeIds } } : undefined,
+      include: { feeType: true, studentFees: { select: { studentId: true } }, _count: { select: { studentFees: true } } },
       orderBy: { feeId: "desc" },
     });
 
-    const formatted = fees.map(formatFee);
+    const withAudit = fees.map((fee) => {
+      const formattedFee = formatFee(fee);
+      const audit = formatFeeAudit(fee.feeId, adminLogs);
 
-    return NextResponse.json(formatted);
+      return {
+        ...formattedFee,
+        ...audit,
+        receivers: formattedFee.assignedCount === 1 && formattedFee.receivers ? formattedFee.receivers : audit.receivers,
+      };
+    });
+    return NextResponse.json(withAudit);
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to fetch fees" }, { status: 500 });
@@ -221,7 +295,10 @@ export async function POST(req: NextRequest) {
           category,
           description: description || null,
           belongsTo: resolvedBelongsTo,
+          amount: normalizedReceiverType === "batch_upload" ? batchAssignments[0]?.amount ?? 0 : Number(amount),
+          dueDate,
           assignedCount,
+          createdFeeIds: createdFees.map((item) => item.feeId),
           receiverType: normalizedReceiverType,
           receiverFilters: normalizedReceiverType === "batch_upload" ? { batchAssignments } : filters,
         },
