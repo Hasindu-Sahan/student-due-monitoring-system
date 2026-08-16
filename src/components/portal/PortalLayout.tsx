@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import {
   Bell,
   LogOut,
@@ -14,7 +15,6 @@ import {
   FileBarChart2,
   GraduationCap,
   ClipboardList,
-  BellRing,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -39,7 +39,6 @@ const adminNav: NavItem[] = [
 const officeNav: NavItem[] = [
   { to: "/faculty", label: "Dashboard", icon: LayoutDashboard },
   { to: "/faculty/payments", label: "Payments", icon: CreditCard },
-  { to: "/faculty/notifications", label: "Notifications", icon: BellRing },
   { to: "/faculty/reports", label: "Reports", icon: FileBarChart2 },
   { to: "/faculty/account", label: "Account", icon: UserCircle2 },
 ];
@@ -61,7 +60,7 @@ export function PortalLayout({
   user: { name: string; sub: string; initials: string };
   title: string;
   subtitle?: string;
-  children: React.ReactNode;
+  children: ReactNode;
   facultyBasePath?: string;
 }) {
   const portalBasePath = getPortalBasePath(role, facultyBasePath);
