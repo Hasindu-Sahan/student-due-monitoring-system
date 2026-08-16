@@ -5,13 +5,17 @@
   "scripts": {
     "dev": "next dev",
     "dev:clean": "npm run clean && next dev",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
     "clean": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true });\"",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "format": "prettier --write ."
+  },
+  "prisma": {
+    "seed": "node --loader ts-node/esm prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
