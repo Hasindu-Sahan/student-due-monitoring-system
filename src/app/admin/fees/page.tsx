@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { lkr } from "@/lib/data";
 import { allowedPaymentOwnerForAdmin, paymentOwnerOptions, resolvePaymentOwner } from "@/lib/belongs-to";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type Fee = {
   feeId: number;
@@ -131,33 +132,33 @@ export default function FeeManagement() {
   };
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
-    setAllowedOwner(allowedPaymentOwnerForAdmin(session?.username));
+    fetchPortalSession().then((session) => {
+      setSessionUserId(session?.userId ?? null);
+      setAllowedOwner(allowedPaymentOwnerForAdmin(session?.username));
 
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const accountQuery = params.toString() ? `?${params.toString()}` : "";
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const accountQuery = params.toString() ? `?${params.toString()}` : "";
 
-    loadFees();
-    fetch(`/api/admin/account${accountQuery}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) setAdmin(data);
-      });
-    fetch("/api/admin/payments-options")
-      .then((r) => r.json())
-      .then((data) =>
-        setOptions({
-          feeTypes: data.feeTypes ?? [],
-          categories: data.categories ?? [],
-          feeSuggestions: data.feeSuggestions ?? [],
-          faculties: data.faculties ?? [],
-          levels: data.levels ?? [],
-        })
-      );
+      loadFees();
+      fetch(`/api/admin/account${accountQuery}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) setAdmin(data);
+        });
+      fetch("/api/admin/payments-options")
+        .then((r) => r.json())
+        .then((data) =>
+          setOptions({
+            feeTypes: data.feeTypes ?? [],
+            categories: data.categories ?? [],
+            feeSuggestions: data.feeSuggestions ?? [],
+            faculties: data.faculties ?? [],
+            levels: data.levels ?? [],
+          })
+        );
+    });
   }, []);
 
   useEffect(() => {

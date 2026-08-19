@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { belongsToVariants, normalizeBelongsTo } from "@/lib/belongs-to";
 
@@ -7,9 +6,6 @@ export async function GET(req: NextRequest) {
   try {
     const belongsTo = normalizeBelongsTo(req.nextUrl.searchParams.get("belongsTo"));
     const belongsToFilters = belongsTo ? belongsToVariants(belongsTo) : [];
-    const cookieStore = await cookies();
-    const raw = cookieStore.get("portalUser")?.value;
-    const session = raw ? (() => { try { return JSON.parse(raw) as { role?: string; userId?: number; username?: string; profileId?: string }; } catch { return null; } })() : null;
     const paymentWhere = belongsTo
       ? {
           studentFee: {
@@ -30,6 +26,9 @@ export async function GET(req: NextRequest) {
           },
         },
       },
+    }).catch((error) => {
+      console.error("admin stats payment query failed", error);
+      return [];
     });
     const latestPayments = Array.from(
       payments.reduce((latest, payment) => {
@@ -45,19 +44,21 @@ export async function GET(req: NextRequest) {
       (sum, payment) => (payment.status === "Approved" ? sum + Number(payment.amountPaid) : sum),
       0,
     );
-    const latestPaymentRows = latestPayments.map((payment) => ({
-      paymentId: payment.paymentId,
-      date: payment.paymentDate.toISOString().split("T")[0],
-      sid: payment.studentFee.student.studentId,
-      name: `${payment.studentFee.student.firstName} ${payment.studentFee.student.lastName}`,
-      feeType: payment.studentFee.fee.feeType.feeName,
-      category: payment.studentFee.fee.feeType.category ?? "",
-      faculty: payment.studentFee.student.faculty ?? "",
-      level: payment.studentFee.student.level ?? null,
-      amount: Number(payment.amountPaid),
-      status: payment.status ?? "Pending",
-      bankSlipUrl: payment.bankSlipUrl ?? null,
-    }));
+    const latestPaymentRows = latestPayments
+      .filter((payment) => Boolean(payment.studentFee?.student) && Boolean(payment.studentFee?.fee?.feeType))
+      .map((payment) => ({
+        paymentId: payment.paymentId,
+        date: payment.paymentDate.toISOString().split("T")[0],
+        sid: payment.studentFee.student.studentId,
+        name: `${payment.studentFee.student.firstName} ${payment.studentFee.student.lastName}`,
+        feeType: payment.studentFee.fee.feeType.feeName,
+        category: payment.studentFee.fee.feeType.category ?? "",
+        faculty: payment.studentFee.student.faculty ?? "",
+        level: payment.studentFee.student.level ?? null,
+        amount: Number(payment.amountPaid),
+        status: payment.status ?? "Pending",
+        bankSlipUrl: payment.bankSlipUrl ?? null,
+      }));
 
     return NextResponse.json({
       totalPaid,

@@ -9,7 +9,7 @@ import { SummaryCard } from "@/components/portal/SummaryCard";
 import { lkr } from "@/lib/data";
 import { fetchPortalSession } from "@/lib/portal-session";
 
-type PortalSession = { userId?: number; username?: string; profileId?: string; designation?: string; dbRole?: string; role?: string; name?: string };
+type OfficeSession = { userId?: number; username?: string; profileId?: string; designation?: string | null; dbRole?: string; role?: string; name?: string };
 type Profile = { firstName: string; lastName: string; designation: string };
 type Payment = { paymentId: number; sid: string; name: string; feeType: string; category: string; faculty: string; level: number | null; amount: number; status: string };
 type PaymentFilterOptions = { feeTypes: string[]; categories: string[]; faculties: string[]; levels: number[] };
@@ -17,7 +17,7 @@ type PaymentFilterOptions = { feeTypes: string[]; categories: string[]; facultie
 const STATUSES = ["Approved", "Pending", "Rejected"] as const;
 const STATUS_COLORS = { Approved: "hsl(142, 71%, 45%)", Pending: "hsl(38, 92%, 50%)", Rejected: "hsl(0, 84%, 60%)" } as const;
 
-function scopeFromSession(session: PortalSession | null, fallbackScope: string): string {
+function scopeFromSession(session: OfficeSession | null, fallbackScope: string): string {
   if (!session) return fallbackScope;
   const value = [session.username ?? "", session.profileId ?? "", session.designation ?? "", session.dbRole ?? "", session.role ?? ""].join(" ").toUpperCase();
   if (value.includes("WEL001") || value.includes("WELFARE")) return "Welfare";

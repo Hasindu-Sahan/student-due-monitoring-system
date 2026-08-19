@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { FileText, FileSpreadsheet, Filter, ArrowUpDown } from "lucide-react";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -55,27 +56,27 @@ export function ReportsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
-    setSessionUsername(session?.username ?? "");
-    setSessionProfileId(session?.profileId ?? "");
+    fetchPortalSession().then((session) => {
+      setSessionUserId(session?.userId ?? null);
+      setSessionUsername(session?.username ?? "");
+      setSessionProfileId(session?.profileId ?? "");
 
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const accountQuery = params.toString() ? `?${params.toString()}` : "";
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const accountQuery = params.toString() ? `?${params.toString()}` : "";
 
-    Promise.all([
-      fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
-      fetch("/api/admin/reports").then((r) => r.json()),
-    ]).then(([adminData, reportsData]) => {
-      if (!adminData.error) setAdmin(adminData);
-      if (!reportsData.error) {
-        setData(reportsData);
-        setReportPage(0);
-      }
-      setLoading(false);
+      Promise.all([
+        fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
+        fetch("/api/admin/reports").then((r) => r.json()),
+      ]).then(([adminData, reportsData]) => {
+        if (!adminData.error) setAdmin(adminData);
+        if (!reportsData.error) {
+          setData(reportsData);
+          setReportPage(0);
+        }
+        setLoading(false);
+      });
     });
   }, []);
 

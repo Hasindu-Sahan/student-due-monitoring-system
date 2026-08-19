@@ -12,6 +12,7 @@ import {
   Hash,
   Briefcase,
 } from "lucide-react";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type FacultyProfile = {
   id: string;
@@ -60,30 +61,30 @@ export default function FASOfficeAccountPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
+    fetchPortalSession().then((session) => {
+      setSessionUserId(session?.userId ?? null);
 
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const query = params.toString() ? `?${params.toString()}` : "";
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const query = params.toString() ? `?${params.toString()}` : "";
 
-    fetch(`/api/admin/account${query}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setFaculty(data);
-          setForm({
-            firstName: data.firstName ?? "",
-            lastName: data.lastName ?? "",
-            phone: data.phone ?? "",
-            designation: data.designation ?? "",
-            username: data.username ?? "",
-            password: "",
-          });
-        }
-      });
+      fetch(`/api/admin/account${query}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) {
+            setFaculty(data);
+            setForm({
+              firstName: data.firstName ?? "",
+              lastName: data.lastName ?? "",
+              phone: data.phone ?? "",
+              designation: data.designation ?? "",
+              username: data.username ?? "",
+              password: "",
+            });
+          }
+        });
+    });
   }, []);
 
   if (!faculty) {

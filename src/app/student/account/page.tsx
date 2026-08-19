@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { KeyRound, UserCog, Mail, Phone, GraduationCap, Calendar, BadgeCheck, Hash } from "lucide-react";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type StudentProfile = { id: string; firstName: string; lastName: string; email: string; phone: string; faculty: string; level?: number | null; status: string };
 
@@ -21,18 +22,18 @@ export default function StudentAccount() {
   const [student, setStudent] = useState<StudentProfile | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const query = params.toString() ? `?${params.toString()}` : "";
+    fetchPortalSession().then((session) => {
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const query = params.toString() ? `?${params.toString()}` : "";
 
-    fetch(`/api/student/account${query}`)
-      .then(r => r.json())
-      .then(data => {
-        if (!data.error) setStudent(data);
-      });
+      fetch(`/api/student/account${query}`)
+        .then(r => r.json())
+        .then(data => {
+          if (!data.error) setStudent(data);
+        });
+    });
   }, []);
 
   if (!student) return (

@@ -6,6 +6,7 @@ import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
 import { allowedPaymentOwnerForAdmin } from "@/lib/belongs-to";
+import { fetchPortalSession } from "@/lib/portal-session";
 import { CircleDollarSign, AlertOctagon, Check, X, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, XCircle, Eye, RotateCcw } from "lucide-react";
 
 type Payment = { paymentId: number; date: string; sid: string; name: string; feeType: string; category: string; faculty: string; level: number | null; amount: number; status: string; bankSlipUrl: string | null };
@@ -35,11 +36,8 @@ export default function AdminPayments() {
   // Office-specific routing based on logged-in admin's username.
   // FAC001 -> FAS_Office, FAC002 -> FOT_Office, FAC003 -> FBSF_Office
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    if (!stored) return;
-    try {
-      const session = JSON.parse(stored);
-      const username: string | undefined = session?.username;
+    fetchPortalSession().then((session) => {
+      const username = session?.username;
       if (!username) return;
 
       const map: Record<string, string> = {
@@ -52,9 +50,7 @@ export default function AdminPayments() {
       if (target && typeof window !== "undefined") {
         window.location.replace(target);
       }
-    } catch {
-      // ignore
-    }
+    });
   }, []);
 
 
@@ -84,42 +80,42 @@ export default function AdminPayments() {
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const belongsTo = allowedPaymentOwnerForAdmin(session?.username);
-    setSessionScope(belongsTo);
-    const accountQuery = params.toString() ? `?${params.toString()}` : "";
-    const scopeQuery = belongsTo ? `?belongsTo=${encodeURIComponent(belongsTo)}` : "";
+    fetchPortalSession().then((session) => {
+      setSessionUserId(session?.userId ?? null);
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const belongsTo = allowedPaymentOwnerForAdmin(session?.username);
+      setSessionScope(belongsTo);
+      const accountQuery = params.toString() ? `?${params.toString()}` : "";
+      const scopeQuery = belongsTo ? `?belongsTo=${encodeURIComponent(belongsTo)}` : "";
 
-    Promise.all([
-      fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/stats${scopeQuery}${accountQuery ? `&${accountQuery.slice(1)}` : ""}`).then((r) => r.json()),
-      fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
-    ]).then(([p, s, a, opts]) => {
-      setPayments(Array.isArray(p) ? p : []);
-      setStats(s && typeof s === "object" && !Array.isArray(s) ? { ...emptyStats, ...s } : emptyStats);
-      if (a && typeof a === "object" && !Array.isArray(a) && !a.error) setAdmin(a);
-      if (
-        opts &&
-        typeof opts === "object" &&
-        !Array.isArray(opts) &&
-        Array.isArray(opts.feeTypes) &&
-        Array.isArray(opts.categories) &&
-        Array.isArray(opts.faculties) &&
-        Array.isArray(opts.levels)
-      ) {
-        setFilterOptions(opts);
-      }
-      setLoading(false);
-    }).catch(() => {
-      setPayments([]);
-      setStats(emptyStats);
-      setLoading(false);
+      Promise.all([
+        fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/stats${scopeQuery}${accountQuery ? `&${accountQuery.slice(1)}` : ""}`).then((r) => r.json()),
+        fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
+      ]).then(([p, s, a, opts]) => {
+        setPayments(Array.isArray(p) ? p : []);
+        setStats(s && typeof s === "object" && !Array.isArray(s) ? { ...emptyStats, ...s } : emptyStats);
+        if (a && typeof a === "object" && !Array.isArray(a) && !a.error) setAdmin(a);
+        if (
+          opts &&
+          typeof opts === "object" &&
+          !Array.isArray(opts) &&
+          Array.isArray(opts.feeTypes) &&
+          Array.isArray(opts.categories) &&
+          Array.isArray(opts.faculties) &&
+          Array.isArray(opts.levels)
+        ) {
+          setFilterOptions(opts);
+        }
+        setLoading(false);
+      }).catch(() => {
+        setPayments([]);
+        setStats(emptyStats);
+        setLoading(false);
+      });
     });
   }, []);
 

@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { BadgePlus, CheckCircle2, Search, Send } from "lucide-react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { allowedPaymentOwnerForAdmin, paymentOwnerOptions, resolvePaymentOwner } from "@/lib/belongs-to";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 type FeeSuggestion = { feeName: string; category: string; description: string };
@@ -91,35 +92,35 @@ export default function AddFeePage() {
   const [messageType, setMessageType] = useState<"success" | "error">("success");
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    setSessionUserId(session?.userId ?? null);
-    setAllowedOwner(allowedPaymentOwnerForAdmin(session?.username));
+    fetchPortalSession().then((session) => {
+      setSessionUserId(session?.userId ?? null);
+      setAllowedOwner(allowedPaymentOwnerForAdmin(session?.username));
 
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const accountQuery = params.toString() ? `?${params.toString()}` : "";
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const accountQuery = params.toString() ? `?${params.toString()}` : "";
 
-    fetch(`/api/admin/account${accountQuery}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) setAdmin(data);
-      });
+      fetch(`/api/admin/account${accountQuery}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) setAdmin(data);
+        });
 
-    fetch("/api/admin/payments-options")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setOptions({
-            feeTypes: data.feeTypes ?? [],
-            categories: data.categories ?? [],
-            feeSuggestions: data.feeSuggestions ?? [],
-            faculties: data.faculties ?? [],
-            levels: data.levels ?? [],
-          });
-        }
-      });
+      fetch("/api/admin/payments-options")
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) {
+            setOptions({
+              feeTypes: data.feeTypes ?? [],
+              categories: data.categories ?? [],
+              feeSuggestions: data.feeSuggestions ?? [],
+              faculties: data.faculties ?? [],
+              levels: data.levels ?? [],
+            });
+          }
+        });
+    });
   }, []);
 
   const matchingFee = useMemo(

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { ArrowUpDown } from "lucide-react";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 type AuditLog = {
@@ -17,12 +18,7 @@ type AuditLog = {
 };
 
 function sessionQuery() {
-  const stored = localStorage.getItem("portalUser");
-  const session = stored ? JSON.parse(stored) : null;
-  const params = new URLSearchParams();
-  if (session?.userId) params.set("userId", String(session.userId));
-  if (session?.username) params.set("username", session.username);
-  return params.toString() ? `?${params.toString()}` : "";
+  return "";
 }
 
 function JsonBlock({ value }: { value: unknown }) {
@@ -36,13 +32,20 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/admin/account${sessionQuery()}`).then((r) => r.json()),
-      fetch("/api/admin/audit-logs").then((r) => r.json()),
-    ]).then(([adminData, logsData]) => {
-      if (!adminData.error) setAdmin(adminData);
-      if (Array.isArray(logsData)) setLogs(logsData);
-      setLoading(false);
+    fetchPortalSession().then((session) => {
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const query = params.toString() ? `?${params.toString()}` : "";
+
+      Promise.all([
+        fetch(`/api/admin/account${query}`).then((r) => r.json()),
+        fetch("/api/admin/audit-logs").then((r) => r.json()),
+      ]).then(([adminData, logsData]) => {
+        if (!adminData.error) setAdmin(adminData);
+        if (Array.isArray(logsData)) setLogs(logsData);
+        setLoading(false);
+      });
     });
   }, []);
 

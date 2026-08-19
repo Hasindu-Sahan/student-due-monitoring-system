@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { Pencil, KeyRound, UserCog, Mail, Phone, BadgeCheck, Hash, Briefcase } from "lucide-react";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type AdminProfile = { userId: number; id: string; username: string; firstName: string; lastName: string; email: string; phone: string; designation: string; lastLogin: string | null };
 
@@ -31,8 +32,7 @@ export default function AdminAccount() {
       setLoading(true);
       setError("");
 
-      const stored = localStorage.getItem("portalUser");
-      const session = stored ? JSON.parse(stored) : null;
+      const session = await fetchPortalSession();
       setSessionUserId(session?.userId ?? null);
       const params = new URLSearchParams();
       if (session?.userId) params.set("userId", String(session.userId));
