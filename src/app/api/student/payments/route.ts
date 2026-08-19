@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type");
     let studentFeeId: number;
     let amountPaid: number;
+    const uploadedByUserId = await readPortalUserId();
     let file: File | null = null;
     let isMultipart = false;
 
@@ -75,13 +76,16 @@ export async function POST(req: NextRequest) {
         });
 
     let bankSlipUrl: string | null = null;
+    let objectPath: string | null = null;
+    let slipUrl: string | null = null;
     if (isMultipart) {
       if (!file) {
         return NextResponse.json({ error: "Payment slip is required" }, { status: 400 });
       }
-      const objectPath = buildBankSlipObjectPath(payment.paymentId, file.name);
+      objectPath = buildBankSlipObjectPath(payment.paymentId, file.name);
       await uploadBankSlip(objectPath, await file.arrayBuffer(), file.type);
-      bankSlipUrl = await createSignedBankSlipUrl(objectPath);
+      slipUrl = await createSignedBankSlipUrl(objectPath);
+      bankSlipUrl = slipUrl;
     } else {
       bankSlipUrl = null;
     }
@@ -93,13 +97,16 @@ export async function POST(req: NextRequest) {
         paymentDate: new Date(),
         status: "Pending",
         bankSlipUrl,
+        objectPath,
+        slipUrl,
+        uploadedByUserId,
         transactionRef: payment.transactionRef ?? `TXN-${Date.now()}`,
         verifiedBy: null,
         remarks: null,
       },
     });
 
-    const studentFee = await prisma.studentFee.update({
+    await prisma.studentFee.update({
       where: { studentFeeId },
       data: { status: "Pending" },
       include: {
@@ -111,6 +118,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(updatedPayment, { status: 201 });
   } catch (error) {
     console.error(error);
+    if (error instanceof Error && /SUPABASE_(URL|SERVICE_ROLE_KEY)/.test(error.message)) {
+      return NextResponse.json({ error: "Payment storage is not configured on the server" }, { status: 503 });
+    }
     return NextResponse.json({ error: "Failed to submit payment" }, { status: 500 });
   }
 }

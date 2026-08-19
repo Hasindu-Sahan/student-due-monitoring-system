@@ -33,10 +33,14 @@ Setup Flow
    AUTH_SECRET="your-auth-secret"
    AUTH_URL="http://localhost:3000"
    NEXT_PUBLIC_APP_NAME="Student Due Monitoring System"
+   SUPABASE_URL="https://your-project.supabase.co"
+   SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
 
    Notes:
    - `DATABASE_URL` is used at runtime by Prisma and the app.
    - `DIRECT_URL` is used by Prisma schema operations and migrations.
+   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are used for remote payment-slip storage.
+   - Create a private Supabase Storage bucket named `bank-slips` before submitting receipts.
    - Do not commit `.env` to version control.
 
 4. Generate the Prisma client
