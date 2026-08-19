@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
       where: paymentWhere,
       orderBy: { paymentId: "desc" },
       include: {
+        paymentSlip: {
+          select: { slipId: true },
+        },
         studentFee: {
           include: {
             student: true,
@@ -57,7 +60,9 @@ export async function GET(req: NextRequest) {
         level: payment.studentFee.student.level ?? null,
         amount: Number(payment.amountPaid),
         status: payment.status ?? "Pending",
-        bankSlipUrl: payment.bankSlipUrl ?? null,
+        bankSlipUrl: payment.paymentSlip
+          ? `/api/payments/slips/${payment.paymentSlip.slipId}`
+          : payment.bankSlipUrl ?? null,
       }));
 
     return NextResponse.json({
