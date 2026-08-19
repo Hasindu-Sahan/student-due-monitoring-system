@@ -145,8 +145,9 @@ export function PortalLayout({
           <button
             type="button"
             onClick={() => {
-              localStorage.removeItem("portalUser");
-              window.location.href = "/";
+              fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+                window.location.href = "/";
+              });
             }}
             className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/80 transition hover:bg-destructive/15 hover:text-destructive-foreground"
           >

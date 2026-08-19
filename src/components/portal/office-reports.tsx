@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpDown, FileSpreadsheet, FileText, Filter } from "lucide-react";
 
 import { PortalLayout } from "@/components/portal/PortalLayout";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -29,31 +30,31 @@ export function OfficeReportsPage({ defaultScope, facultyBasePath = "/faculty" }
   const [resolvedScope, setResolvedScope] = useState(defaultScope);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    const value = [session?.username ?? "", session?.profileId ?? "", session?.designation ?? "", session?.dbRole ?? "", session?.role ?? ""].join(" ").toUpperCase();
-    const scope =
-      value.includes("WEL001") || value.includes("WELFARE")
-        ? "Welfare"
-        : value.includes("FAC002") || value.includes("FOT_OFFICE") || value.includes("FOT")
-          ? "FOT_Office"
-          : value.includes("FAC003") || value.includes("FBSF_OFFICE") || value.includes("FBSF")
-            ? "FBSF_Office"
-            : value.includes("FAC001") || value.includes("FAS_OFFICE") || value.includes("FAS")
-              ? "FAS_Office"
-              : defaultScope;
-    setResolvedScope(scope);
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const accountQuery = params.toString() ? `?${params.toString()}` : "";
-    Promise.all([
-      fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
-      fetch("/api/admin/reports").then((r) => r.json()),
-    ]).then(([adminData, reportsData]) => {
-      if (!adminData.error) setAdmin(adminData);
-      if (!reportsData.error) setData(reportsData);
-      setLoading(false);
+    fetchPortalSession().then((session) => {
+      const value = [session?.username ?? "", session?.profileId ?? "", session?.designation ?? "", session?.dbRole ?? "", session?.role ?? ""].join(" ").toUpperCase();
+      const scope =
+        value.includes("WEL001") || value.includes("WELFARE")
+          ? "Welfare"
+          : value.includes("FAC002") || value.includes("FOT_OFFICE") || value.includes("FOT")
+            ? "FOT_Office"
+            : value.includes("FAC003") || value.includes("FBSF_OFFICE") || value.includes("FBSF")
+              ? "FBSF_Office"
+              : value.includes("FAC001") || value.includes("FAS_OFFICE") || value.includes("FAS")
+                ? "FAS_Office"
+                : defaultScope;
+      setResolvedScope(scope);
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const accountQuery = params.toString() ? `?${params.toString()}` : "";
+      Promise.all([
+        fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
+        fetch("/api/admin/reports").then((r) => r.json()),
+      ]).then(([adminData, reportsData]) => {
+        if (!adminData.error) setAdmin(adminData);
+        if (!reportsData.error) setData(reportsData);
+        setLoading(false);
+      });
     });
   }, []);
 

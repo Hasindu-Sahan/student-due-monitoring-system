@@ -115,8 +115,6 @@ export default function LoginPage() {
                   return;
                 }
 
-                localStorage.setItem("portalUser", JSON.stringify(data));
-
                 const profileId = String(data.profileId ?? "").toUpperCase();
                 const isWelfare = profileId.includes("WEL001") || profileId.includes("WEL");
                 const isFas = profileId.includes("FAC001") || profileId.includes("FAS");

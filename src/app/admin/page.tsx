@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { lkr } from "@/lib/data";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type AdminProfile = { firstName: string; lastName: string; designation: string };
 type AdminDashboardPayment = {
@@ -27,50 +28,18 @@ export default function AdminDashboard() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    if (session?.profileId) params.set("profileId", session.profileId);
-    const query = params.toString() ? `?${params.toString()}` : "";
-
-    Promise.all([
-      fetch(`/api/admin/fees${query}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/admin/account${query}`, { cache: "no-store" }).then((r) => r.json()),
-    ])
-      .then(([feesData, accountData]) => {
-        if (Array.isArray(feesData)) {
-          setRows(feesData.map((fee: any) => ({
-            feeId: fee.feeId,
-            addedDate: fee.addedDate ?? fee.due ?? "",
-            feeType: fee.type ?? "",
-            category: fee.category ?? "",
-            dueDate: fee.dueDate ?? fee.due ?? "",
-            receivers: fee.receivers ?? "All receivers",
-            amount: Number(fee.amount ?? 0),
-          })));
-        }
-        if (accountData && typeof accountData === "object" && !Array.isArray(accountData) && !accountData.error) {
-          setAdmin(accountData);
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const refresh = () => {
-      const stored = localStorage.getItem("portalUser");
-      const session = stored ? JSON.parse(stored) : null;
+    fetchPortalSession().then((session) => {
       const params = new URLSearchParams();
       if (session?.userId) params.set("userId", String(session.userId));
       if (session?.username) params.set("username", session.username);
       if (session?.profileId) params.set("profileId", session.profileId);
       const query = params.toString() ? `?${params.toString()}` : "";
 
-      fetch(`/api/admin/fees${query}`, { cache: "no-store" })
-        .then((r) => r.json())
-        .then((feesData) => {
+      Promise.all([
+        fetch(`/api/admin/fees${query}`, { cache: "no-store" }).then((r) => r.json()),
+        fetch(`/api/admin/account${query}`, { cache: "no-store" }).then((r) => r.json()),
+      ])
+        .then(([feesData, accountData]) => {
           if (Array.isArray(feesData)) {
             setRows(feesData.map((fee: any) => ({
               feeId: fee.feeId,
@@ -82,7 +51,39 @@ export default function AdminDashboard() {
               amount: Number(fee.amount ?? 0),
             })));
           }
-        });
+          if (accountData && typeof accountData === "object" && !Array.isArray(accountData) && !accountData.error) {
+            setAdmin(accountData);
+          }
+        })
+        .finally(() => setLoading(false));
+    });
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      fetchPortalSession().then((session) => {
+        const params = new URLSearchParams();
+        if (session?.userId) params.set("userId", String(session.userId));
+        if (session?.username) params.set("username", session.username);
+        if (session?.profileId) params.set("profileId", session.profileId);
+        const query = params.toString() ? `?${params.toString()}` : "";
+
+        fetch(`/api/admin/fees${query}`, { cache: "no-store" })
+          .then((r) => r.json())
+          .then((feesData) => {
+            if (Array.isArray(feesData)) {
+              setRows(feesData.map((fee: any) => ({
+                feeId: fee.feeId,
+                addedDate: fee.addedDate ?? fee.due ?? "",
+                feeType: fee.type ?? "",
+                category: fee.category ?? "",
+                dueDate: fee.dueDate ?? fee.due ?? "",
+                receivers: fee.receivers ?? "All receivers",
+                amount: Number(fee.amount ?? 0),
+              })));
+            }
+          });
+      });
     };
 
     window.addEventListener("fee-data-changed", refresh);

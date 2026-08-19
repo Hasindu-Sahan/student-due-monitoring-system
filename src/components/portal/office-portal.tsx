@@ -7,6 +7,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { lkr } from "@/lib/data";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type PortalSession = { userId?: number; username?: string; profileId?: string; designation?: string; dbRole?: string; role?: string; name?: string };
 type Profile = { firstName: string; lastName: string; designation: string };
@@ -40,26 +41,26 @@ export function OfficeDashboardPage({ defaultScope, facultyBasePath = "/faculty"
   const [scope, setScope] = useState(defaultScope);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? (JSON.parse(stored) as PortalSession) : null;
-    const resolvedScope = scopeFromSession(session, defaultScope);
-    setScope(resolvedScope);
-    const accountParams = new URLSearchParams();
-    if (session?.userId) accountParams.set("userId", String(session.userId));
-    if (session?.username) accountParams.set("username", session.username);
-    const accountQuery = accountParams.toString() ? `?${accountParams.toString()}` : "";
-    const scopeQuery = `?belongsTo=${encodeURIComponent(resolvedScope)}`;
+    fetchPortalSession().then((session) => {
+      const resolvedScope = scopeFromSession(session, defaultScope);
+      setScope(resolvedScope);
+      const accountParams = new URLSearchParams();
+      if (session?.userId) accountParams.set("userId", String(session.userId));
+      if (session?.username) accountParams.set("username", session.username);
+      const accountQuery = accountParams.toString() ? `?${accountParams.toString()}` : "";
+      const scopeQuery = `?belongsTo=${encodeURIComponent(resolvedScope)}`;
 
-    Promise.all([
-      fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
-    ]).then(([paymentsData, accountData, optionsData]) => {
-      setPayments(Array.isArray(paymentsData) ? paymentsData : []);
-      if (accountData && !accountData.error) setProfile({ firstName: accountData.firstName ?? "Portal", lastName: accountData.lastName ?? "", designation: accountData.designation ?? "" });
-      if (optionsData && !optionsData.error) setFilterOptions(optionsData);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+      Promise.all([
+        fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
+      ]).then(([paymentsData, accountData, optionsData]) => {
+        setPayments(Array.isArray(paymentsData) ? paymentsData : []);
+        if (accountData && !accountData.error) setProfile({ firstName: accountData.firstName ?? "Portal", lastName: accountData.lastName ?? "", designation: accountData.designation ?? "" });
+        if (optionsData && !optionsData.error) setFilterOptions(optionsData);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    });
   }, [defaultScope]);
 
   const filtered = useMemo(() => payments.filter((p) => {

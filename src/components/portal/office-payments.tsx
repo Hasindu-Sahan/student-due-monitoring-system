@@ -7,6 +7,7 @@ import { PortalLayout } from "@/components/portal/PortalLayout";
 import { SummaryCard } from "@/components/portal/SummaryCard";
 import { StatusBadge } from "@/components/portal/StatusBadge";
 import { lkr } from "@/lib/data";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type Payment = { paymentId: number; date: string; sid: string; name: string; feeType: string; category: string; faculty: string; level: number | null; amount: number; status: string; bankSlipUrl: string | null };
 type Stats = { totalPaid: number; totalRemainingDues: number; totalPendingDues: number; totalOverdue: number; approved: number; pending: number; rejected: number };
@@ -46,46 +47,46 @@ export function OfficePaymentsPage({ defaultScope, facultyBasePath = "/faculty" 
   const [scope, setScope] = useState(defaultScope);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
-    const resolvedScope = scopeFromSession(session, defaultScope);
-    setScope(resolvedScope);
-    setSessionUserId(session?.userId ?? null);
+    fetchPortalSession().then((session) => {
+      const resolvedScope = scopeFromSession(session, defaultScope);
+      setScope(resolvedScope);
+      setSessionUserId(session?.userId ?? null);
 
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const accountQuery = params.toString() ? `?${params.toString()}` : "";
-    const scopeQuery = `?belongsTo=${encodeURIComponent(resolvedScope)}`;
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const accountQuery = params.toString() ? `?${params.toString()}` : "";
+      const scopeQuery = `?belongsTo=${encodeURIComponent(resolvedScope)}`;
 
-    Promise.all([
-      fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/stats${scopeQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
-      fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
-    ])
-      .then(([paymentsData, statsData, accountData, optionsData]) => {
-        setPayments(Array.isArray(paymentsData) ? paymentsData : []);
-        setStats(statsData && typeof statsData === "object" && !Array.isArray(statsData) ? {
-          totalPaid: Number(statsData.totalPaid) || 0,
-          totalRemainingDues: Number(statsData.totalRemainingDues ?? statsData.totalDues) || 0,
-          totalPendingDues: Number(statsData.totalPendingDues) || 0,
-          totalOverdue: Number(statsData.totalOverdue) || 0,
-          approved: Number(statsData.approved) || 0,
-          pending: Number(statsData.pending) || 0,
-          rejected: Number(statsData.rejected) || 0,
-        } : emptyStats);
-        if (accountData && typeof accountData === "object" && !Array.isArray(accountData) && !accountData.error) {
-          setAdmin(accountData);
-        }
-        if (optionsData && !optionsData.error) setFilterOptions(optionsData);
-        setLoading(false);
-      })
-      .catch(() => {
-        setPayments([]);
-        setStats(emptyStats);
-        setLoading(false);
-      });
+      Promise.all([
+        fetch(`/api/admin/payments${scopeQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/stats${scopeQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/account${accountQuery}`).then((r) => r.json()),
+        fetch(`/api/admin/payments-options${scopeQuery}`).then((r) => r.json()),
+      ])
+        .then(([paymentsData, statsData, accountData, optionsData]) => {
+          setPayments(Array.isArray(paymentsData) ? paymentsData : []);
+          setStats(statsData && typeof statsData === "object" && !Array.isArray(statsData) ? {
+            totalPaid: Number(statsData.totalPaid) || 0,
+            totalRemainingDues: Number(statsData.totalRemainingDues ?? statsData.totalDues) || 0,
+            totalPendingDues: Number(statsData.totalPendingDues) || 0,
+            totalOverdue: Number(statsData.totalOverdue) || 0,
+            approved: Number(statsData.approved) || 0,
+            pending: Number(statsData.pending) || 0,
+            rejected: Number(statsData.rejected) || 0,
+          } : emptyStats);
+          if (accountData && typeof accountData === "object" && !Array.isArray(accountData) && !accountData.error) {
+            setAdmin(accountData);
+          }
+          if (optionsData && !optionsData.error) setFilterOptions(optionsData);
+          setLoading(false);
+        })
+        .catch(() => {
+          setPayments([]);
+          setStats(emptyStats);
+          setLoading(false);
+        });
+    });
   }, [defaultScope]);
 
   const updateStatus = async (paymentId: number, status: string) => {
