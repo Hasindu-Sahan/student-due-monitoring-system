@@ -22,7 +22,6 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type");
     let studentFeeId: number;
     let amountPaid: number;
-    const uploadedByUserId = await readPortalUserId();
     let file: File | null = null;
     let isMultipart = false;
 
@@ -76,17 +75,13 @@ export async function POST(req: NextRequest) {
         });
 
     let bankSlipUrl: string | null = null;
-    let objectPath: string | null = null;
-    let slipUrl: string | null = null;
-
     if (isMultipart) {
       if (!file) {
         return NextResponse.json({ error: "Payment slip is required" }, { status: 400 });
       }
-      objectPath = buildBankSlipObjectPath(payment.paymentId, file.name);
+      const objectPath = buildBankSlipObjectPath(payment.paymentId, file.name);
       await uploadBankSlip(objectPath, await file.arrayBuffer(), file.type);
-      slipUrl = await createSignedBankSlipUrl(objectPath);
-      bankSlipUrl = slipUrl;
+      bankSlipUrl = await createSignedBankSlipUrl(objectPath);
     } else {
       bankSlipUrl = null;
     }
@@ -98,9 +93,6 @@ export async function POST(req: NextRequest) {
         paymentDate: new Date(),
         status: "Pending",
         bankSlipUrl,
-        objectPath,
-        slipUrl,
-        uploadedByUserId,
         transactionRef: payment.transactionRef ?? `TXN-${Date.now()}`,
         verifiedBy: null,
         remarks: null,

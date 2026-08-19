@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       level: payment.studentFee.student.level ?? null,
       amount: Number(payment.amountPaid),
       status: payment.status ?? "Pending",
-      bankSlipUrl: payment.slipUrl ?? payment.bankSlipUrl ?? null,
+      bankSlipUrl: payment.bankSlipUrl ?? null,
     }));
 
     return NextResponse.json({

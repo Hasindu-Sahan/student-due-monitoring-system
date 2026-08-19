@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       level: p.studentFee.student.level ?? null,
       amount: Number(p.amountPaid),
       status: p.status ?? "Pending",
-      bankSlipUrl: p.slipUrl ?? p.bankSlipUrl ?? null,
+      bankSlipUrl: p.bankSlipUrl ?? null,
     }));
 
     return NextResponse.json(formatted);

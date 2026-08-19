@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ElementType } from "react";
 import { BadgeCheck, Briefcase, Hash, Mail, Phone, UserCog } from "lucide-react";
 import { PortalLayout } from "@/components/portal/PortalLayout";
+import { fetchPortalSession } from "@/lib/portal-session";
 
 type OfficeProfile = {
   id: string;
@@ -46,21 +47,20 @@ export function OfficeAccountPage({
   const [faculty, setFaculty] = useState<OfficeProfile | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("portalUser");
-    const session = stored ? JSON.parse(stored) : null;
+    fetchPortalSession().then((session) => {
+      const params = new URLSearchParams();
+      if (session?.userId) params.set("userId", String(session.userId));
+      if (session?.username) params.set("username", session.username);
+      const query = params.toString() ? `?${params.toString()}` : "";
 
-    const params = new URLSearchParams();
-    if (session?.userId) params.set("userId", String(session.userId));
-    if (session?.username) params.set("username", session.username);
-    const query = params.toString() ? `?${params.toString()}` : "";
-
-    fetch(`/api/admin/account${query}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setFaculty(data);
-        }
-      });
+      fetch(`/api/admin/account${query}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (!data.error) {
+            setFaculty(data);
+          }
+        });
+    });
   }, []);
 
   if (!faculty) {
