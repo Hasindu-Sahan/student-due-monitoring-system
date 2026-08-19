@@ -1,94 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { belongsToVariants, normalizeBelongsTo } from "@/lib/belongs-to";
-
-async function resolveAdminUserId(input?: { userId?: unknown; username?: unknown; profileId?: unknown }) {
-  const userId = Number(input?.userId);
-  if (Number.isInteger(userId) && userId > 0) {
-    const user = await prisma.user.findUnique({
-      where: { userId },
-      include: { admin: true },
-    });
-    if (user?.admin) return user.userId;
-  }
-
-  const username = String(input?.username ?? input?.profileId ?? "").trim();
-  if (!username) return null;
-
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ username }, { email: username }],
-    },
-    include: { admin: true },
-  });
-
-  if (user?.admin) return user.userId;
-
-  const admin = await prisma.admin.findFirst({
-    where: {
-      OR: [
-        { employeeId: username },
-        { user: { username } },
-        { user: { email: username } },
-      ],
-    },
-    include: { user: true },
-  });
-
-  return admin?.userId ?? null;
-}
 
 export async function GET(req: NextRequest) {
   try {
     const belongsTo = normalizeBelongsTo(req.nextUrl.searchParams.get("belongsTo"));
     const belongsToFilters = belongsTo ? belongsToVariants(belongsTo) : [];
-    const resolvedUserId = await resolveAdminUserId({
-      userId: req.nextUrl.searchParams.get("userId"),
-      username: req.nextUrl.searchParams.get("username"),
-      profileId: req.nextUrl.searchParams.get("profileId"),
-    });
-
-    const adminFeeLogs = resolvedUserId
-      ? await prisma.auditLog.findMany({
-        where: {
-          userId: resolvedUserId,
-          tableName: "fees",
-        },
-        orderBy: { timestamp: "desc" },
-      })
-      : [];
-    const adminFeeIds = Array.from(
-      new Set(
-        adminFeeLogs
-          .map((log) => Number((log as any).recordId ?? (log as any).currentState?.feeId))
-          .filter((feeId) => Number.isInteger(feeId) && feeId > 0),
-      ),
-    );
-
-    const paymentWhere = {
-      AND: [
-        ...(belongsTo
-          ? [
-              {
-                studentFee: {
-                  fee: {
-                    belongsTo: { in: belongsToFilters },
-                  },
-                },
-              },
-            ]
-          : []),
-        ...(adminFeeIds.length > 0
-          ? [
-              {
-                studentFee: {
-                  feeId: { in: adminFeeIds },
-                },
-              },
-            ]
-          : []),
-      ],
-    };
+    const cookieStore = await cookies();
+    const raw = cookieStore.get("portalUser")?.value;
+    const session = raw ? (() => { try { return JSON.parse(raw) as { role?: string; userId?: number; username?: string; profileId?: string }; } catch { return null; } })() : null;
+    const paymentWhere = belongsTo
+      ? {
+          studentFee: {
+            fee: {
+              belongsTo: { in: belongsToFilters },
+            },
+          },
+        }
+      : undefined;
     const payments = await prisma.payment.findMany({
       where: paymentWhere,
       orderBy: { paymentId: "desc" },
@@ -129,32 +59,6 @@ export async function GET(req: NextRequest) {
       bankSlipUrl: payment.slipUrl ?? payment.bankSlipUrl ?? null,
     }));
 
-    const latestFeeRows = adminFeeLogs
-      .filter((log) => log.action === "Created fee")
-      .map((log) => {
-        const state = (log.currentState ?? {}) as any;
-        const filters = state.receiverFilters ?? {};
-        const receivers = Array.isArray(filters.batchAssignments)
-          ? filters.batchAssignments.map((item: any) => item.studentId).join(", ")
-          : filters.studentId
-            ? String(filters.studentId)
-            : filters.faculty
-              ? `${filters.faculty}${filters.level && filters.level !== "all" ? ` / Level ${filters.level}` : ""}`
-              : "All receivers";
-        return {
-          paymentId: log.logId,
-          date: log.timestamp.toISOString().split("T")[0],
-          sid: String(receivers),
-          name: String(state.feeName ?? "New fee"),
-          feeType: String(state.feeName ?? "New fee"),
-          category: String(state.category ?? ""),
-          dueDate: String(state.dueDate ?? ""),
-          receivers,
-          amount: Number(state.amount ?? 0),
-          status: "Assigned",
-        };
-      });
-
     return NextResponse.json({
       totalPaid,
       totalNotPaid: latestPayments.filter((payment) => payment.status !== "Approved").length,
@@ -162,7 +66,7 @@ export async function GET(req: NextRequest) {
       pending,
       rejected,
       latestPayments: latestPaymentRows,
-      latestFeeAssignments: latestFeeRows,
+      latestFeeAssignments: [],
     });
   } catch (error) {
     console.error(error);
