@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { buildBankSlipObjectPath, createSignedBankSlipUrl, uploadBankSlip } from "@/lib/supabase-storage";
+import { buildBankSlipObjectPath } from "@/lib/supabase-storage";
 const allowedSlipTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maxSlipSize = 10 * 1024 * 1024;
 
@@ -83,8 +83,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Payment slip is required" }, { status: 400 });
       }
       objectPath = buildBankSlipObjectPath(payment.paymentId, file.name);
-      await uploadBankSlip(objectPath, await file.arrayBuffer(), file.type);
-      slipUrl = await createSignedBankSlipUrl(objectPath);
+      const paymentSlip = await prisma.paymentSlip.upsert({
+        where: { paymentId: payment.paymentId },
+        create: {
+          paymentId: payment.paymentId,
+          objectPath,
+          originalFileName: file.name,
+          mimeType: file.type,
+          fileSize: BigInt(file.size),
+          fileData: Buffer.from(await file.arrayBuffer()),
+          uploadedByUserId,
+        },
+        update: {
+          objectPath,
+          originalFileName: file.name,
+          mimeType: file.type,
+          fileSize: BigInt(file.size),
+          fileData: Buffer.from(await file.arrayBuffer()),
+          uploadedByUserId,
+          uploadedAt: new Date(),
+        },
+      });
+      slipUrl = `/api/payments/slips/${paymentSlip.slipId}`;
       bankSlipUrl = slipUrl;
     } else {
       bankSlipUrl = null;
@@ -118,9 +138,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(updatedPayment, { status: 201 });
   } catch (error) {
     console.error(error);
-    if (error instanceof Error && /SUPABASE_(URL|SERVICE_ROLE_KEY)/.test(error.message)) {
-      return NextResponse.json({ error: "Payment storage is not configured on the server" }, { status: 503 });
-    }
     return NextResponse.json({ error: "Failed to submit payment" }, { status: 500 });
   }
 }

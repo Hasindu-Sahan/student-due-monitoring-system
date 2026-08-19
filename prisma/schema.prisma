@@ -127,8 +127,26 @@ model Payment {
 
   studentFee StudentFee @relation(fields: [studentFeeId], references: [studentFeeId], onDelete: Cascade)
   verifier   User?      @relation("VerifiedBy", fields: [verifiedBy], references: [userId], onDelete: SetNull)
+  paymentSlip PaymentSlip?
 
   @@map("payments")
+}
+
+model PaymentSlip {
+  slipId           BigInt   @id @default(autoincrement()) @map("slip_id")
+  paymentId        Int      @unique @map("payment_id")
+  objectPath       String   @map("object_path") @db.Text
+  originalFileName String?  @map("original_file_name") @db.Text
+  mimeType         String?  @map("mime_type") @db.Text
+  fileSize         BigInt?  @map("file_size")
+  fileData         Bytes?   @map("file_data")
+  slipUrl          String?  @map("slip_url") @db.Text
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+  uploadedByUserId Int?     @map("uploaded_by_user_id")
+
+  payment Payment @relation(fields: [paymentId], references: [paymentId], onDelete: Cascade)
+
+  @@map("payment_slips")
 }
 
 enum PaymentStatus {
