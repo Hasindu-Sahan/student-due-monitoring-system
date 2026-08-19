@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
-
-const uploadDir = path.join(process.cwd(), "public", "uploads", "payment-slips");
+import { buildBankSlipObjectPath, createSignedBankSlipUrl, uploadBankSlip } from "@/lib/supabase-storage";
 const allowedSlipTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maxSlipSize = 10 * 1024 * 1024;
 
-function safeFileName(fileName: string) {
-  return fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+async function readPortalUserId() {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get("portalUser")?.value;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { userId?: number };
+    return Number.isInteger(parsed.userId) ? parsed.userId ?? null : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -16,12 +22,14 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type");
     let studentFeeId: number;
     let amountPaid: number;
-    let bankSlipUrl: string | null = null;
+    const uploadedByUserId = await readPortalUserId();
+    let file: File | null = null;
+    let isMultipart = false;
 
     if (contentType?.includes("multipart/form-data")) {
-      // Handle file upload
+      isMultipart = true;
       const formData = await req.formData();
-      const file = formData.get("slip") as File;
+      file = formData.get("slip") as File;
       studentFeeId = Number(formData.get("studentFeeId"));
       amountPaid = Number(formData.get("amountPaid"));
 
@@ -37,21 +45,11 @@ export async function POST(req: NextRequest) {
         if (file.size > maxSlipSize) {
           return NextResponse.json({ error: "Slip file must be 10MB or smaller" }, { status: 400 });
         }
-
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const fileName = `${Date.now()}-${safeFileName(file.name)}`;
-
-        await mkdir(uploadDir, { recursive: true });
-        await writeFile(path.join(uploadDir, fileName), buffer);
-
-        bankSlipUrl = `/uploads/payment-slips/${fileName}`;
       }
     } else {
-      // Handle JSON request (backwards compatibility)
       const body = await req.json();
       studentFeeId = body.studentFeeId;
       amountPaid = body.amountPaid;
-      bankSlipUrl = body.bankSlipUrl ?? null;
     }
 
     if (!studentFeeId || Number.isNaN(studentFeeId) || !amountPaid || Number.isNaN(amountPaid) || amountPaid <= 0) {
@@ -62,27 +60,52 @@ export async function POST(req: NextRequest) {
       where: { studentFeeId },
       orderBy: { paymentId: "desc" },
     });
-    const paymentData = {
-      amountPaid,
-      paymentDate: new Date(),
-      bankSlipUrl,
-      status: "Pending" as const,
-      transactionRef: `TXN-${Date.now()}`,
-      verifiedBy: null,
-      remarks: null,
-    };
 
     const payment = existingPayment
-      ? await prisma.payment.update({
-          where: { paymentId: existingPayment.paymentId },
-          data: paymentData,
-        })
+      ? existingPayment
       : await prisma.payment.create({
           data: {
             studentFeeId,
-            ...paymentData,
+            amountPaid,
+            paymentDate: new Date(),
+            status: "Pending",
+            transactionRef: `TXN-${Date.now()}`,
+            verifiedBy: null,
+            remarks: null,
           },
         });
+
+    let bankSlipUrl: string | null = null;
+    let objectPath: string | null = null;
+    let slipUrl: string | null = null;
+
+    if (isMultipart) {
+      if (!file) {
+        return NextResponse.json({ error: "Payment slip is required" }, { status: 400 });
+      }
+      objectPath = buildBankSlipObjectPath(payment.paymentId, file.name);
+      await uploadBankSlip(objectPath, await file.arrayBuffer(), file.type);
+      slipUrl = await createSignedBankSlipUrl(objectPath);
+      bankSlipUrl = slipUrl;
+    } else {
+      bankSlipUrl = null;
+    }
+
+    const updatedPayment = await prisma.payment.update({
+      where: { paymentId: payment.paymentId },
+      data: {
+        amountPaid,
+        paymentDate: new Date(),
+        status: "Pending",
+        bankSlipUrl,
+        objectPath,
+        slipUrl,
+        uploadedByUserId,
+        transactionRef: payment.transactionRef ?? `TXN-${Date.now()}`,
+        verifiedBy: null,
+        remarks: null,
+      },
+    });
 
     const studentFee = await prisma.studentFee.update({
       where: { studentFeeId },
@@ -93,16 +116,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await prisma.notification.create({
-      data: {
-        studentId: studentFee.studentId,
-        notificationType: "Payment",
-        message: `${studentFee.student.firstName} ${studentFee.student.lastName} submitted a payment for ${studentFee.fee.feeType.feeName}.`,
-        status: "Unread",
-      },
-    });
-
-    return NextResponse.json(payment, { status: 201 });
+    return NextResponse.json(updatedPayment, { status: 201 });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to submit payment" }, { status: 500 });

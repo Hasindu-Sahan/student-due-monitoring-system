@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import {
-  Bell,
   LogOut,
   LayoutDashboard,
   UserCircle2,
@@ -24,7 +22,6 @@ type NavItem = { to: string; label: string; icon: LucideIcon };
 const studentNav: NavItem[] = [
   { to: "/student", label: "Dashboard", icon: LayoutDashboard },
   { to: "/student/payment", label: "Payment", icon: CreditCard },
-  { to: "/student/notifications", label: "Notifications", icon: Bell },
   { to: "/student/account", label: "Account", icon: UserCircle2 },
 ];
 
@@ -77,29 +74,10 @@ export function PortalLayout({
           }))
         : adminNav;
   const pathname = usePathname();
-  const [hasUnread, setHasUnread] = useState(false);
   const isWelfarePortal =
     role === "faculty" &&
     [user.name, user.sub, user.initials].some((value) => value.toLowerCase().includes("welfare"));
   const activeBasePath = portalBasePath ?? "/faculty";
-
-  useEffect(() => {
-    const loadUnread = () => {
-      const route = role === "admin" ? "/api/admin/notifications" : "/api/student/notifications";
-      fetch(route)
-        .then((r) => r.json())
-        .then((notifications) => {
-          if (Array.isArray(notifications)) {
-            setHasUnread(notifications.some((notification) => notification.status === "Unread"));
-          }
-        })
-        .catch(() => setHasUnread(false));
-    };
-
-    loadUnread();
-    const timer = window.setInterval(loadUnread, 30000);
-    return () => window.clearInterval(timer);
-  }, [role]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -186,12 +164,6 @@ export function PortalLayout({
             {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           <div className="flex items-center gap-3">
-            {role === "admin" && (
-              <Link href={role === "admin" ? "/admin/notifications" : "/student/notifications"} className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card text-muted-foreground transition hover:text-foreground">
-                <Bell className="h-[18px] w-[18px]" />
-                {hasUnread && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive" />}
-              </Link>
-            )}
             <button className="flex items-center gap-2 rounded-xl border bg-card pl-1 pr-3 py-1 transition hover:shadow-soft">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-sm font-semibold text-primary">
                 {user.initials}

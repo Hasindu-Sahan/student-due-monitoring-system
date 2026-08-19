@@ -65,16 +65,6 @@ export async function GET(req: NextRequest) {
       ),
     );
 
-    const studentFeesWhere = {
-      AND: [
-        ...(belongsTo ? [{ fee: { belongsTo: { in: belongsToFilters } } }] : []),
-        ...(adminFeeIds.length > 0 ? [{ feeId: { in: adminFeeIds } }] : []),
-      ],
-    };
-    const studentFees = await prisma.studentFee.findMany({
-      where: studentFeesWhere,
-      include: { fee: true, payments: true },
-    });
     const paymentWhere = {
       AND: [
         ...(belongsTo
@@ -118,26 +108,9 @@ export async function GET(req: NextRequest) {
       }, new Map<number, (typeof payments)[number]>()).values(),
     );
 
-    let totalRemainingDues = 0;
-    let totalOverdue = 0;
-
-    for (const sf of studentFees) {
-      const amount = Number(sf.fee.amount) + Number(sf.penaltyAmount);
-      const latestPayment = [...sf.payments].sort((a, b) => b.paymentId - a.paymentId)[0];
-      const isApproved = latestPayment?.status === "Approved";
-      const isPendingApproval = latestPayment?.status === "Pending";
-
-      if (!isApproved && !isPendingApproval) totalRemainingDues += amount;
-      if (!isApproved && sf.fee.dueDate && sf.fee.dueDate < new Date()) totalOverdue += amount;
-    }
-
     const approved = latestPayments.filter((payment) => payment.status === "Approved").length;
     const pending = latestPayments.filter((payment) => payment.status === "Pending").length;
     const rejected = latestPayments.filter((payment) => payment.status === "Rejected").length;
-    const totalPendingDues = latestPayments.reduce(
-      (sum, payment) => (payment.status === "Pending" ? sum + Number(payment.amountPaid) : sum),
-      0,
-    );
     const totalPaid = latestPayments.reduce(
       (sum, payment) => (payment.status === "Approved" ? sum + Number(payment.amountPaid) : sum),
       0,
@@ -153,7 +126,7 @@ export async function GET(req: NextRequest) {
       level: payment.studentFee.student.level ?? null,
       amount: Number(payment.amountPaid),
       status: payment.status ?? "Pending",
-      bankSlipUrl: payment.bankSlipUrl ?? null,
+      bankSlipUrl: payment.slipUrl ?? payment.bankSlipUrl ?? null,
     }));
 
     const latestFeeRows = adminFeeLogs

@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         status: sf.status,
         approval: latestPayment?.status ?? null,
         paymentId: latestPayment?.paymentId ?? null,
-        bankSlipUrl: latestPayment?.bankSlipUrl ?? null,
+        bankSlipUrl: latestPayment?.slipUrl ?? latestPayment?.bankSlipUrl ?? null,
       };
     });
 

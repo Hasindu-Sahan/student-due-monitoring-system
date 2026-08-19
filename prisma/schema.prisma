@@ -69,7 +69,6 @@ model Student {
 
   user          User           @relation(fields: [userId], references: [userId], onDelete: Cascade)
   studentFees   StudentFee[]
-  notifications Notification[]
 
   @@map("students")
 }
@@ -117,6 +116,9 @@ model Payment {
   amountPaid     Decimal        @map("amount_paid") @db.Decimal(10, 2)
   paymentDate    DateTime       @map("payment_date") @db.Date
   bankSlipUrl    String?        @map("bank_slip_url") @db.VarChar(255)
+  objectPath     String?        @map("object_path") @db.VarChar(255)
+  slipUrl        String?        @map("slip_url") @db.VarChar(255)
+  uploadedByUserId Int?         @map("uploaded_by_user_id")
   status         PaymentStatus?
   transactionRef String?        @unique @map("transaction_ref") @db.VarChar(100)
   receiptNo      String?        @unique @map("receipt_no") @db.VarChar(100)
@@ -133,24 +135,6 @@ enum PaymentStatus {
   Pending
   Approved
   Rejected
-}
-
-model Notification {
-  notificationId   Int                 @id @default(autoincrement()) @map("notification_id")
-  studentId        String              @map("student_id") @db.VarChar(50)
-  notificationType String?             @map("notification_type") @db.VarChar(50)
-  message          String              @db.Text
-  status           NotificationStatus?
-  sentDate         DateTime            @default(now()) @map("sent_date")
-
-  student Student @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
-
-  @@map("notifications")
-}
-
-enum NotificationStatus {
-  Read
-  Unread
 }
 
 model AuditLog {

@@ -63,10 +63,6 @@ async function main() {
     },
   });
 
-  await prisma.notification.deleteMany({
-    where: { studentId: { in: sampleStudentIds } },
-  });
-
   await prisma.student.deleteMany({
     where: { studentId: { in: sampleStudentIds } },
   });

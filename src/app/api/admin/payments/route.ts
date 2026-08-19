@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       level: p.studentFee.student.level ?? null,
       amount: Number(p.amountPaid),
       status: p.status ?? "Pending",
-      bankSlipUrl: p.bankSlipUrl ?? null,
+      bankSlipUrl: p.slipUrl ?? p.bankSlipUrl ?? null,
     }));
 
     return NextResponse.json(formatted);
@@ -105,20 +105,6 @@ export async function PATCH(req: NextRequest) {
         data: { status: nextStudentFeeStatus },
       });
 
-      // Create a student notification on admin approve/reject.
-      await prisma.notification.create({
-        data: {
-          studentId: previous.studentFee.studentId,
-          notificationType: "PaymentStatus",
-          status: "Unread",
-          message:
-            nextStatus === "Approved"
-              ? `Your payment has been approved for the assigned fee. You can now view it in your payments.`
-              : nextStatus === "Rejected"
-                ? `Your payment has been rejected. Please check and submit again if required.`
-                : `The payment decision was reverted to pending review. Please wait for the admin's final decision.`,
-        },
-      });
     }
 
     await writeAuditLog({
